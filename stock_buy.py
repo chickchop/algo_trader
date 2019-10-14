@@ -20,6 +20,5 @@ def handle_data(context, dat):
     order(symbol("078930.KS"),1)
 
 
-algo = TradingAlgorithm(initialize=initialize, handle_data=handle_data)
+algo = TradingAlgorithm(initialize=initialize, handle_data=handle_data) # zipline api bug. reference -> https://github.com/quantopian/zipline/issues/2480
 
-#FIXME zipline api bug. reference -> https://stackoverflow.com/questions/56957791/getting-jsondecodeerror-expecting-value-line-1-column-1-char-0-with-python
