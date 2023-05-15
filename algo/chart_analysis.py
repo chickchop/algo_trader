@@ -16,7 +16,7 @@ else:
 
 matplotlib.rcParams['axes.unicode_minus'] = False
 defalut_option = {
-    "start_date" : datetime.today() - timedelta(days=60)
+    "start_date" : datetime.today() - timedelta(days=110)
 }
 
 def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_date"]) :
