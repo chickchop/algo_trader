@@ -19,8 +19,8 @@ defalut_option = {
     "start_date" : datetime.today() - timedelta(days=60)
 }
 
-def analysis_bollinger_bands(category, text, start_date=defalut_option["start_date"]) :
-    corp_nm, corp_code, stock_df, status = get_corp_data(category, text, start_date)
+def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_date"]) :
+    corp_nm, corp_code, stock_df, status = get_corp_data(category, corp, start_date)
 
     if status == "Sucess" :
         stock_df['ma20'] = stock_df['Close'].rolling(window=20).mean() # 20일 이동평균
