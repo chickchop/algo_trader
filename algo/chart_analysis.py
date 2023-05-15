@@ -1,5 +1,6 @@
 import platform
 from datetime import datetime, timedelta
+import mplfinance as mpf
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,7 +17,7 @@ else:
 
 matplotlib.rcParams['axes.unicode_minus'] = False
 defalut_option = {
-    "start_date" : datetime.today() - timedelta(days=110)
+    "start_date" : datetime.today() - timedelta(days=80)
 }
 
 def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_date"]) :
@@ -48,12 +49,14 @@ def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_da
         stock_df['MFI10'] = 100 - 100/(1+stock_df['MFR'])
         stock_df = stock_df[19:] # 20일 이동평균을 구했기 때문에 20번째 행부터 값이 들어가 있음
 
-
+        ##### plot
         fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(10, 30), sharex=True)
         axes[0].plot(stock_df.index, stock_df['Close'], label='종가')
         axes[0].plot(stock_df.index, stock_df['upper'], linestyle='dashed', label='Upper band')
         axes[0].plot(stock_df.index, stock_df['ma20'], linestyle='dashed', label='Moving Average 20')
         axes[0].plot(stock_df.index, stock_df['lower'], linestyle='dashed', label='Lower band')
+        mpf.candlestick2_ohlc(axes[0],stock_df['Open'],stock_df['High'],
+                  stock_df['Low'],stock_df['Close'],width=0.6)
         axes[0].set_title(f'{corp_nm}({corp_code})의 볼린저 밴드(20일, 2 표준편차)')
 
         for i in range(stock_df.shape[0]):
@@ -79,6 +82,13 @@ def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_da
         axes[3].axhline(y=20, color="red", linestyle='dotted')
         axes[3].grid(True)
         axes[3].legend(loc='best')
+
+        ##### analysis
+        comment = "볼린저 벤드는 주가의 변동성을 분석하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n"
+        if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
+            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다."
+        else :
+            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다."
     
         return fig, 200, status
     else :
