@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Dict
 import os
 import sys
+import json
 from flask import Flask, request, jsonify, render_template, abort
 from flask_restful import Api
 from flask_cors import CORS
@@ -77,7 +78,9 @@ def get_answer():
 
 def main() :
     if BOT_TYPE == "telegram" :
-        token = "6077047821:AAGSOxUtmm5iemyfQHhB7kNmQRcXawGWT5s"
+        with open('config/configs.json') as f:
+            json_object = json.load(f)
+        token = json_object["telegram_token"]
         CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
         reply_keyboard = [
             ["종목명","종목코드", "Something else..."],
