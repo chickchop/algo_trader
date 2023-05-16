@@ -82,12 +82,7 @@ def main() :
         with open('config/configs.json') as f:
             json_object = json.load(f)
         token = json_object["telegram_token"]
-        CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
-        reply_keyboard = [
-            ["종목명","종목코드", "Something else..."],
-            ["Done"],
-            ]
-        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        CHOOSING, CHOOSING2, TYPING_REPLY, TYPING_CHOICE = range(4)
 
 
         def facts_to_str(user_data: Dict[str, str]) -> str:
@@ -97,6 +92,11 @@ def main() :
 
 
         async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+            reply_keyboard = [
+            ["종목명","종목코드", "Something else..."],
+            ["Done"],
+            ]
+            markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
             """Start the conversation and ask user for input."""
             await update.message.reply_text(
                 "Hi! My name is Ko chat. 몇 가지 물어볼게요",
@@ -106,10 +106,18 @@ def main() :
             return CHOOSING
 
 
-        async def regular_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        async def regular_choice1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             """Ask the user for info about the selected predefined choice."""
             text = update.message.text
             context.user_data["choice"] = text
+            await update.message.reply_text(f"{text.lower()}을 선택하셨군요!")
+
+            return CHOOSING2
+        
+        async def regular_choice2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+            """Ask the user for info about the selected predefined choice."""
+            text = update.message.text
+            context.user_data["analysis_type"] = text
             await update.message.reply_text(f"{text.lower()}을 선택하셨군요!")
 
             return TYPING_REPLY
@@ -181,13 +189,18 @@ def main() :
             states={
                 CHOOSING: [
                     MessageHandler(
-                        filters.Regex("^(종목명|종목코드)$"), regular_choice
+                        filters.Regex("^(종목명|종목코드)$"), regular_choice1
                     ),
                     MessageHandler(filters.Regex("^Something else...$"), custom_choice),
                 ],
+                CHOOSING2: [
+                    MessageHandler(
+                        filters.Regex("^(분석방법)$"), regular_choice2
+                    )
+                ],
                 TYPING_CHOICE: [
                     MessageHandler(
-                        filters.TEXT & ~(filters.COMMAND | filters.Regex("^Done$")), regular_choice
+                        filters.TEXT & ~(filters.COMMAND | filters.Regex("^Done$")), regular_choice1
                     )
                 ],
                 TYPING_REPLY: [

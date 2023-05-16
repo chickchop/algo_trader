@@ -1,155 +1,369 @@
-class TelegramApi:
-    def __init__(self,
-                 dataset: Dataset,
-                 embed_processor,
-                 intent_classifier,
-                 entity_recognizer,
-                 scenarios: List[Scenario] = None):
+import logging
+from typing import Any, Dict, Tuple
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
 
-        """
-        Flask를 이용해 구현한 RESTFul API 클래스입니다.
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-        :param dataset: 데이터셋 객체
-        :param embed_processor: 임베딩 프로세서 객체 or (, 학습여부)
-        :param intent_classifier: 인텐트 분류기 객체 or (, 학습여부)
-        :param entity_recognizer: 개체명 인식기 객체 or (, 학습여부)
-        :param scenarios : 시나리오 리스트 (list 타입)
-        """
+# State definitions for top level conversation
+SELECTING_ACTION, SELECTING_CORP, ADDING_SELF, DESCRIBING_SELF = map(chr, range(4))
+# State definitions for second level conversation
+SELECTING_LEVEL, SELECTING_GENDER = map(chr, range(4, 6))
+# State definitions for descriptions conversation
+SELECTING_FEATURE, TYPING = map(chr, range(6, 8))
+# Meta states
+STOPPING, SHOWING = map(chr, range(8, 10))
+# Shortcut for ConversationHandler.END
+END = ConversationHandler.END
 
-        self.app = Flask(__name__)
-        self.app.config['JSON_AS_ASCII'] = False
+# Different constants for this example
+(
+    PARENTS,
+    CHILDREN,
+    SELF,
+    GENDER,
+    MALE,
+    FEMALE,
+    TYPE,
+    NAME,
+    START_OVER,
+    FEATURES,
+    CURRENT_FEATURE,
+    CURRENT_LEVEL,
+) = map(chr, range(10, 22))
 
-        self.dataset = dataset
-        self.scenario_manager = ScenarioManager()
-        self.dialogue_cache = {}
 
-        self.embed_processor = embed_processor[0] \
-            if isinstance(embed_processor, tuple) \
-            else embed_processor
+# Helper
+def _name_switcher(level: str) -> Tuple[str, str]:
+    if level == PARENTS:
+        return "Father", "Mother"
+    return "Brother", "Sister"
 
-        self.intent_classifier = intent_classifier[0] \
-            if isinstance(intent_classifier, tuple) \
-            else intent_classifier
 
-        self.entity_recognizer = entity_recognizer[0] \
-            if isinstance(entity_recognizer, tuple) \
-            else entity_recognizer
+# Top level conversation callbacks
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Select an action: Adding parent/child or show data."""
+    text = (
+        "You may choose to add a family member, yourself, show the gathered data, or end the "
+        "conversation. To abort, simply type /stop."
+    )
 
-        if isinstance(embed_processor, tuple) \
-                and len(embed_processor) == 2 and embed_processor[1] is True:
-            self.__fit_embed()
+    buttons = [
+        [
+            InlineKeyboardButton(text="종목 선택", callback_data=str(SELECTING_CORP)),
+            InlineKeyboardButton(text="Add yourself", callback_data=str(ADDING_SELF)),
+        ],
+        [
+            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+            InlineKeyboardButton(text="Done", callback_data=str(END)),
+        ],
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
 
-        if isinstance(intent_classifier, tuple) \
-                and len(intent_classifier) == 2 and intent_classifier[1] is True:
-            self.__fit_intent()
+    # If we're starting over we don't need to send a new message
+    if context.user_data.get(START_OVER):
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    else:
+        await update.message.reply_text(
+            "Hi, I'm kochatbot and I'm here to help you gather information."
+        )
+        await update.message.reply_text(text=text, reply_markup=keyboard)
 
-        if isinstance(entity_recognizer, tuple) \
-                and len(entity_recognizer) == 2 and entity_recognizer[1] is True:
-            self.__fit_entity()
+    context.user_data[START_OVER] = False
+    return SELECTING_ACTION
 
-        for scenario in scenarios:
-            self.scenario_manager.add_scenario(scenario)
 
-        self.__build()
+async def adding_self(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Add information about yourself."""
+    context.user_data[CURRENT_LEVEL] = SELF
+    text = "Okay, please tell me about yourself."
+    button = InlineKeyboardButton(text="Add info", callback_data=str(MALE))
+    keyboard = InlineKeyboardMarkup.from_button(button)
 
-    def __build(self):
-        """
-        flask 함수들을 build합니다.
-        """
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
 
-        @self.app.route('/{}/<uid>/<text>'.format(self.request_chat_url_pattern), methods=['GET'])
-        def request_chat(uid: str, text: str) -> dict:
-            """
-            문자열을 입력하면 intent, entity, state, answer 등을 포함한
-            딕셔너리를 json 형태로 반환합니다.
+    return DESCRIBING_SELF
 
-            :param uid: 유저 아이디 (고유값)
-            :param text: 유저 입력 문자열
-            :return: json 딕셔너리
-            """
 
-            prep = self.dataset.load_predict(text, self.embed_processor)
-            intent = self.intent_classifier.predict(prep, calibrate=False)
-            entity = self.entity_recognizer.predict(prep)
-            text = self.dataset.prep.tokenize(text, train=False)
-            self.dialogue_cache[uid] = self.scenario_manager.apply_scenario(intent, entity, text)
-            return self.dialogue_cache[uid]
+async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Pretty print gathered data."""
 
-        @self.app.route('/{}/<uid>/<text>'.format(self.fill_slot_url_pattern), methods=['GET'])
-        def fill_slot(uid: str, text: str) -> dict:
-            """
-            이전 대화에서 entity가 충분히 입력되지 않았을 때
-            빈 슬롯을 채우기 위해 entity recognition을 요청합니다.
+    def pretty_print(data: Dict[str, Any], level: str) -> str:
+        people = data.get(level)
+        if not people:
+            return "\nNo information yet."
 
-            :param uid: 유저 아이디 (고유값)
-            :param text: 유저 입력 문자열
-            :return: json 딕셔너리
-            """
+        return_str = ""
+        if level == SELF:
+            for person in data[level]:
+                return_str += f"\nName: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
+        else:
+            male, female = _name_switcher(level)
 
-            prep = self.dataset.load_predict(text, self.embed_processor)
-            entity = self.entity_recognizer.predict(prep)
-            text = self.dataset.prep.tokenize(text, train=False)
-            intent = self.dialogue_cache[uid]['intent']
+            for person in data[level]:
+                gender = female if person[GENDER] == FEMALE else male
+                return_str += (
+                    f"\n{gender}: Name: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
+                )
+        return return_str
 
-            text = text + self.dialogue_cache[uid]['input']  # 이전에 저장된 dict 앞에 추가
-            entity = entity + self.dialogue_cache[uid]['entity']  # 이전에 저장된 dict 앞에 추가
-            return self.scenario_manager.apply_scenario(intent, entity, text)
+    user_data = context.user_data
+    text = f"Yourself:{pretty_print(user_data, SELF)}"
+    text += f"\n\nParents:{pretty_print(user_data, PARENTS)}"
+    text += f"\n\nChildren:{pretty_print(user_data, CHILDREN)}"
 
-        @self.app.route('/{}/<text>'.format(self.get_intent_url_pattern), methods=['GET'])
-        def get_intent(text: str) -> dict:
-            """
-            Intent Classification을 수행합니다.
+    buttons = [[InlineKeyboardButton(text="Back", callback_data=str(END))]]
+    keyboard = InlineKeyboardMarkup(buttons)
 
-            :param text: 유저 입력 문자열
-            :return: json 딕셔너리
-            """
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    user_data[START_OVER] = True
 
-            prep = self.dataset.load_predict(text, self.embed_processor)
-            intent = self.intent_classifier.predict(prep, calibrate=False)
-            return {
-                'input': text,
-                'intent': intent,
-                'entity': None,
-                'state': 'REQUEST_INTENT',
-                'answer': None
-            }
+    return SHOWING
 
-        @self.app.route('/{}/<text>'.format(self.get_entity_url_pattern), methods=['GET'])
-        def get_entity(text: str) -> dict:
-            """
-            Entity Recognition을 수행합니다.
 
-            :param text: 유저 입력 문자열
-            :return: json 딕셔너리
-            """
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End Conversation by command."""
+    await update.message.reply_text("Okay, bye.")
 
-            prep = self.dataset.load_predict(text, self.embed_processor)
-            entity = self.entity_recognizer.predict(prep)
-            return {
-                'input': text,
-                'intent': None,
-                'entity': entity,
-                'state': 'REQUEST_ENTITY',
-                'answer': None
-            }
+    return END
 
-    def __fit_intent(self):
-        """
-        Intent Classifier를 학습합니다.
-        """
 
-        self.intent_classifier.fit(self.dataset.load_intent(self.embed_processor))
+async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End conversation from InlineKeyboardButton."""
+    await update.callback_query.answer()
 
-    def __fit_entity(self):
-        """
-        Entity Recognizr를 학습합니다.
-        """
+    text = "See you around!"
+    await update.callback_query.edit_message_text(text=text)
 
-        self.entity_recognizer.fit(self.dataset.load_entity(self.embed_processor))
+    return END
 
-    def __fit_embed(self):
-        """
-        Embedding을 학습합니다.
-        """
 
-        self.embed_processor.fit(self.dataset.load_embed())
+# Second level conversation callbacks
+async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Choose to add a parent or a child."""
+    text = "You may add a parent or a child. Also you can show the gathered data or go back."
+    buttons = [
+        [
+            InlineKeyboardButton(text="Add parent", callback_data=str(PARENTS)),
+            InlineKeyboardButton(text="Add child", callback_data=str(CHILDREN)),
+        ],
+        [
+            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+            InlineKeyboardButton(text="Back", callback_data=str(END)),
+        ],
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return SELECTING_LEVEL
+
+
+async def select_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Choose to add mother or father."""
+    level = update.callback_query.data
+    context.user_data[CURRENT_LEVEL] = level
+
+    text = "Please choose, whom to add."
+
+    male, female = _name_switcher(level)
+
+    buttons = [
+        [
+            InlineKeyboardButton(text=f"Add {male}", callback_data=str(MALE)),
+            InlineKeyboardButton(text=f"Add {female}", callback_data=str(FEMALE)),
+        ],
+        [
+            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+            InlineKeyboardButton(text="Back", callback_data=str(END)),
+        ],
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return SELECTING_GENDER
+
+
+async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Return to top level conversation."""
+    context.user_data[START_OVER] = True
+    await start(update, context)
+
+    return END
+
+
+# Third level callbacks
+async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Select a feature to update for the person."""
+    buttons = [
+        [
+            InlineKeyboardButton(text="종목명", callback_data=str(NAME)),
+            InlineKeyboardButton(text="분석방법", callback_data=str(TYPE)),
+            InlineKeyboardButton(text="Done", callback_data=str(END)),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    # If we collect features for a new person, clear the cache and save the gender
+    if not context.user_data.get(START_OVER):
+        context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        text = "Please select a feature to update."
+
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    # But after we do that, we need to send a new message
+    else:
+        text = "Got it! Please select a feature to update."
+        await update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECTING_FEATURE
+
+
+async def ask_for_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Prompt user to input data for selected feature."""
+    context.user_data[CURRENT_FEATURE] = update.callback_query.data
+    text = "Okay, tell me."
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text)
+
+    return TYPING
+
+
+async def save_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Save input for feature and return to feature selection."""
+    user_data = context.user_data
+    user_data[FEATURES][user_data[CURRENT_FEATURE]] = update.message.text
+
+    user_data[START_OVER] = True
+
+    return await select_feature(update, context)
+
+
+async def end_describing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End gathering of features and return to parent conversation."""
+    user_data = context.user_data
+    level = user_data[CURRENT_LEVEL]
+    if not user_data.get(level):
+        user_data[level] = []
+    user_data[level].append(user_data[FEATURES])
+
+    # Print upper level menu
+    if level == SELF:
+        user_data[START_OVER] = True
+        await start(update, context)
+    else:
+        await select_level(update, context)
+
+    return END
+
+
+async def stop_nested(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Completely end conversation from within nested conversation."""
+    await update.message.reply_text("Okay, bye.")
+
+    return STOPPING
+
+
+def main() -> None:
+    """Run the bot."""
+    # Create the Application and pass it your bot's token.
+    application = Application.builder().token("TOKEN").build()
+
+    # Set up third level ConversationHandler (collecting features)
+    description_conv = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(
+                select_feature, pattern="^" + str(MALE) + "$|^" + str(FEMALE) + "$"
+            )
+        ],
+        states={
+            SELECTING_FEATURE: [
+                CallbackQueryHandler(ask_for_input, pattern="^(?!" + str(END) + ").*$")
+            ],
+            TYPING: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_input)],
+        },
+        fallbacks=[
+            CallbackQueryHandler(end_describing, pattern="^" + str(END) + "$"),
+            CommandHandler("stop", stop_nested),
+        ],
+        map_to_parent={
+            # Return to second level menu
+            END: SELECTING_LEVEL,
+            # End conversation altogether
+            STOPPING: STOPPING,
+        },
+    )
+
+    # Set up second level ConversationHandler (adding a person)
+    add_member_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_level, pattern="^" + str(SELECTING_CORP) + "$")],
+        states={
+            SELECTING_LEVEL: [
+                CallbackQueryHandler(select_gender, pattern=f"^{PARENTS}$|^{CHILDREN}$")
+            ],
+            SELECTING_GENDER: [description_conv],
+        },
+        fallbacks=[
+            CallbackQueryHandler(show_data, pattern="^" + str(SHOWING) + "$"),
+            CallbackQueryHandler(end_second_level, pattern="^" + str(END) + "$"),
+            CommandHandler("stop", stop_nested),
+        ],
+        map_to_parent={
+            # After showing data return to top level menu
+            SHOWING: SHOWING,
+            # Return to top level menu
+            END: SELECTING_ACTION,
+            # End conversation altogether
+            STOPPING: END,
+        },
+    )
+
+    # Set up top level ConversationHandler (selecting action)
+    # Because the states of the third level conversation map to the ones of the second level
+    # conversation, we need to make sure the top level conversation can also handle them
+    selection_handlers = [
+        add_member_conv,
+        CallbackQueryHandler(show_data, pattern="^" + str(SHOWING) + "$"),
+        CallbackQueryHandler(adding_self, pattern="^" + str(ADDING_SELF) + "$"),
+        CallbackQueryHandler(end, pattern="^" + str(END) + "$"),
+    ]
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            SHOWING: [CallbackQueryHandler(start, pattern="^" + str(END) + "$")],
+            SELECTING_ACTION: selection_handlers,
+            SELECTING_LEVEL: selection_handlers,
+            DESCRIBING_SELF: [description_conv],
+            STOPPING: [CommandHandler("start", start)],
+        },
+        fallbacks=[CommandHandler("stop", stop)],
+    )
+
+    application.add_handler(conv_handler)
+
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling()
+
+
+if __name__ == "__main__":
+    main()
