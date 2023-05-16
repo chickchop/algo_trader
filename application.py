@@ -10,7 +10,7 @@ from flask_cors import CORS
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from chatbot_template import KakaoTemplate
-from algo.chart_analysis import analysis_bollinger_bands
+from algo.chart_analysis import get_chart_result
 
 # from kochat.app import KochatApi
 # from kochat.data import Dataset
@@ -37,7 +37,7 @@ BOT_TYPE = "telegram"
 def prepare_data_for_answer(category, corp):
     # Write the plot Figure to a file-like bytes object:
     plot_file = BytesIO()
-    fig, status_code, msg = analysis_bollinger_bands(category, corp)
+    fig, status_code, msg, comment = get_chart_result(category, corp, analysis_type=2)
     if status_code == 200 :
         fig.savefig(plot_file, format='png')
         plot_file.seek(0)
@@ -51,6 +51,7 @@ def prepare_data_for_answer(category, corp):
         "msg" : msg ,
         "error_msg" : error_msg,
         "plot_file": plot_file,
+        "comment" : comment
     }
 
     return prepared_data
@@ -138,6 +139,7 @@ def main() :
                 )
 
                 await update.message.reply_text(
+                    return_data["comment"] + "\n" +
                     f"{facts_to_str(user_data)}에 관련된 분석 내용입니다. 추가로 궁금하시게 있으면 선택해 주세요.",
                     reply_markup=markup,
                 )

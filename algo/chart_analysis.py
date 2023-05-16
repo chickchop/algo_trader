@@ -20,8 +20,46 @@ defalut_option = {
     "start_date" : datetime.today() - timedelta(days=80)
 }
 
-def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_date"]) :
+def get_chart_result(category, corp, analysis_type=1, start_date=defalut_option["start_date"]) :
     corp_nm, corp_code, stock_df, status = get_corp_data(category, corp, start_date)
+    if analysis_type == 1 :
+        return analysis_olhc(corp_nm, corp_code, stock_df, status)
+    else :
+        return analysis_bollinger_bands(corp_nm, corp_code, stock_df, status)
+    
+
+def analysis_olhc(corp_nm, corp_code, stock_df, status) :
+    if status == "Sucess" :
+        up = stock_df[stock_df["Close"] >= stock_df["Open"]]
+        down = stock_df[stock_df["Close"] < stock_df["Open"]]
+        width = .3
+        width2 = .03
+
+        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 10), sharex=True)
+
+        axes[0].bar(up.index, up["Close"]-up["Open"], width, bottom=up["Open"], color="red")
+        axes[0].bar(up.index, up["High"]-up["Close"], width2, bottom=up["Close"], color="red")
+        axes[0].bar(up.index, up["Low"]-up["Open"], width2, bottom=up["Open"], color="red")
+        
+        # Plotting down prices of the stock
+        axes[0].bar(down.index, down["Close"]-down["Open"], width, bottom=down["Open"], color="blue")
+        axes[0].bar(down.index, down["High"]-down["Close"], width2, bottom=down["Close"], color="blue")
+        axes[0].bar(down.index, down["Low"]-down["Open"], width2, bottom=down["Open"], color="blue")
+
+        axes[0].set_title(f'{corp_nm}(주가차트)')
+
+        axes[1].bar(stock_df.index, stock_df['Volume'], label='거래량', color="grey")
+        axes[1].grid(True)
+        axes[1].legend(loc='best')
+
+        ##### analysis
+        comment = "기초 캔들 차트 입니다. \n"
+
+        return fig, 200, status, comment
+    else :
+        return None, 500, status, comment
+
+def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
 
     if status == "Sucess" :
         stock_df['ma20'] = stock_df['Close'].rolling(window=20).mean() # 20일 이동평균
@@ -55,8 +93,6 @@ def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_da
         axes[0].plot(stock_df.index, stock_df['upper'], linestyle='dashed', label='Upper band')
         axes[0].plot(stock_df.index, stock_df['ma20'], linestyle='dashed', label='Moving Average 20')
         axes[0].plot(stock_df.index, stock_df['lower'], linestyle='dashed', label='Lower band')
-        mpf.candlestick2_ohlc(axes[0],stock_df['Open'],stock_df['High'],
-                  stock_df['Low'],stock_df['Close'],width=0.6)
         axes[0].set_title(f'{corp_nm}({corp_code})의 볼린저 밴드(20일, 2 표준편차)')
 
         for i in range(stock_df.shape[0]):
@@ -86,10 +122,26 @@ def analysis_bollinger_bands(category, corp, start_date=defalut_option["start_da
         ##### analysis
         comment = "볼린저 벤드는 주가의 변동성을 분석하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n"
         if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다."
+            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. \n"
         else :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다."
-    
-        return fig, 200, status
+            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. \n"
+        
+        if stock_df[-1]["Close"] < stock_df[-1]["upper"] and stock_df[-1]["Close"] > stock_df[-1]["lower"] :
+            comment = comment + "볼린저 밴드의 내부에 있습니다. 박스권 입니다. \n"
+            if stock_df[-1]["Close"] < stock_df[-1]["am20"] :
+                comment = comment + "볼린저 밴드의 하단 입니다. 매수를 추천합니다. \n"
+        elif stock_df[-1]["Close"] > stock_df[-1]["upper"] and stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() < stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
+            comment = comment + "볼린저 밴드의 상단 이탈이지만 변동성이 큽니다. 호재가 있는지 확인 후 매수하세요. \n"
+        elif stock_df[-1]["Close"] > stock_df[-1]["upper"] and stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
+            comment = comment + "볼린저 밴드의 상단 이탈이지만 변동성이 작습니다. 대세 상승일 수 있습니다. \n"
+        else :
+            comment = comment + "볼린저 밴드의 박스권 밖 이탈입니다. 호재, 악재 여부를 확인 후 매수하세요. \n"
+
+        if stock_df[-1]['MFI10'] <= 20 :
+            comment = comment + "MFI 지수가 20 아래입니다. 거래량이 죽었습니다. \n"
+        elif stock_df[-1]['MFI10'] >= 20 :   
+            comment = comment + "MFI 지수가 80 위입니다. 과열되었습니다. \n"
+
+        return fig, 200, status, comment
     else :
-        return None, 500, status
+        return None, 500, status, comment
