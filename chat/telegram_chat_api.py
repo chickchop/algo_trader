@@ -19,11 +19,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # State definitions for top level conversation
-SELECTING_ACTION, ANALYSIS, ADDING_SELF, DESCRIBING_SELF = map(chr, range(4))
-# State definitions for descriptions conversation
-SELECTING_CORP, TYPING = map(chr, range(4, 6))
+SELECTING_ACTION, INFORMATION, ADDING_SELF, DESCRIBING_SELF = map(chr, range(4))
 # State definitions for second level conversation
-SELECTING_LEVEL, SELECTING_FEATURE = map(chr, range(6, 8))
+SELECTING_LEVEL, SELECTING_TYPE = map(chr, range(4, 6))
+# State definitions for descriptions conversation
+SELECTING_FEATURE, TYPING = map(chr, range(6, 8))
 # Meta states
 STOPPING, SHOWING = map(chr, range(8, 10))
 # Shortcut for ConversationHandler.END
@@ -31,38 +31,41 @@ END = ConversationHandler.END
 
 # Different constants for this example
 (
-    SCENARIO_LEVEL,
-    START_OVER,
-    SELF,
-    CORP_NAME,
-    CORP_CODE,
-    CORP,
-    CURRENT_CORP,
-    LEVEL,
-    TREND,
     CHART,
     VALUATION,
-    MOMENTUM,
-    OLHC,
-    BOLLINDER
+    SELF,
+    GENDER,
+    OHLC,
+    BOLLINDGER,
+    KPI,
+    MODEL,
+    CODE,
+    NAME,
+    START_OVER,
+    FEATURES,
+    CURRENT_FEATURE,
+    CURRENT_LEVEL,
 ) = map(chr, range(10, 24))
-            
-with open('config/configs.json') as f:
-    json_object = json.load(f)
-token = json_object["telegram_token"]
+
+
+# Helper
+def _name_switcher(level: str) -> Tuple[str, str]:
+    if level == CHART:
+        return "Father", "Mother"
+    return "Brother", "Sister"
 
 
 # Top level conversation callbacks
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Select an action: 분석 선택 or show data."""
+    """Select an action: Adding parent/child or show data."""
     text = (
-        "분석을 진행하거나 분석 결과를 볼 수 있습니다. 대화를 종료하려면"
-        "/stop 을 쳐주세요."
+        "분석을 수행하기 위해서 분석을 수행하세요. 입력한 정보를 확인하려면 show data 로 확인하세요. Done 을 누르시면 종료입니다."
+        "간단하게 대화를 종료하려면 /stop."
     )
-    context.user_data[SCENARIO_LEVEL] = 1
+
     buttons = [
         [
-            InlineKeyboardButton(text="분석 수행", callback_data=str(ANALYSIS)),
+            InlineKeyboardButton(text="정보 입력", callback_data=str(INFORMATION)),
             InlineKeyboardButton(text="Add yourself", callback_data=str(ADDING_SELF)),
         ],
         [
@@ -78,7 +81,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
     else:
         await update.message.reply_text(
-            "Hi, I'm kochatbot and I'm here to help you gather information."
+            "Hi, Kochat 입니다. 기업 분석을 원하시는 내용을 선택해주셔야 합니다."
         )
         await update.message.reply_text(text=text, reply_markup=keyboard)
 
@@ -88,9 +91,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
 async def adding_self(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Add information about yourself."""
-    context.user_data[SCENARIO_LEVEL] = SELF
+    context.user_data[CURRENT_LEVEL] = SELF
     text = "Okay, please tell me about yourself."
-    button = InlineKeyboardButton(text="Add info", callback_data=str(LEVEL))
+    button = InlineKeyboardButton(text="Add info", callback_data=str(OHLC))
     keyboard = InlineKeyboardMarkup.from_button(button)
 
     await update.callback_query.answer()
@@ -100,38 +103,37 @@ async def adding_self(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Pretty print gathered data."""
+    print(context.user_data)
+    def pretty_print(data: Dict[str, Any], level: str) -> str:
+        corp = data.get(level)
+        if not corp:
+            return "\nNo information yet."
 
-    # def pretty_print(data: Dict[str, Any], level: str) -> str:
-    #     people = data.get(level)
-    #     if not people:
-    #         return "\nNo information yet."
+        return_str = ""
+        if level == SELF:
+            for corp in data[level]:
+                return_str += f"\nName: {corp.get(NAME, '-')}, Age: {corp.get(AGE, '-')}"
+        else:
+            male, female = _name_switcher(level)
 
-    #     return_str = ""
-    #     if level == SELF:
-    #         for person in data[level]:
-    #             return_str += f"\nName: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
-    #     else:
-    #         male, female = _name_switcher(level)
+            for corp in data[level]:
+                gender = female if corp[GENDER] == FEMALE else male
+                return_str += (
+                    f"\n{gender}: Name: {corp.get(NAME, '-')}, Age: {corp.get(AGE, '-')}"
+                )
+        return return_str
 
-    #         for person in data[level]:
-    #             gender = female if person[GENDER] == FEMALE else male
-    #             return_str += (
-    #                 f"\n{gender}: Name: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
-    #             )
-    #     return return_str
+    user_data = context.user_data
+    text = f"Yourself:{pretty_print(user_data, SELF)}"
+    text += f"\n\nCHART:{pretty_print(user_data, CHART)}"
+    text += f"\n\nVALUATION:{pretty_print(user_data, VALUATION)}"
 
-    # user_data = context.user_data
-    # text = f"Yourself:{pretty_print(user_data, SELF)}"
-    # text += f"\n\nParents:{pretty_print(user_data, PARENTS)}"
-    # text += f"\n\nChildren:{pretty_print(user_data, CHILDREN)}"
+    buttons = [[InlineKeyboardButton(text="Back", callback_data=str(END))]]
+    keyboard = InlineKeyboardMarkup(buttons)
 
-    # buttons = [[InlineKeyboardButton(text="Back", callback_data=str(END))]]
-    # keyboard = InlineKeyboardMarkup(buttons)
-
-    # await update.callback_query.answer()
-    # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    # user_data[START_OVER] = True
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    user_data[START_OVER] = True
 
     return SHOWING
 
@@ -154,26 +156,106 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 # Second level conversation callbacks
-async def select_corp_input_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    text = "기업을 찾기 위한 방법으로 종목 명이나 종목 코드를 선택해주세요."
-    context.user_data[SCENARIO_LEVEL] = 2
+async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Choose to add a parent or a child."""
+    text = "기업 분석 방법을 선택해주세요. 마찬가지로 show data 로 입력을 확인하거나 뒤로 돌아갈 수 있습니다."
     buttons = [
         [
-            InlineKeyboardButton(text="종목명", callback_data=str(CORP_NAME)),
-            InlineKeyboardButton(text="종목코드", callback_data=str(CORP_CODE)),
+            InlineKeyboardButton(text="기술적 분석(차트 분석)", callback_data=str(CHART)),
+            InlineKeyboardButton(text="기본 분석(벨류에이션)", callback_data=str(VALUATION)),
+        ],
+        [
+            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+            InlineKeyboardButton(text="Back", callback_data=str(END)),
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
 
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    
-    return SELECTING_CORP
+
+    return SELECTING_LEVEL
+
+
+async def select_analysis_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Choose to add mother or father."""
+    level = update.callback_query.data
+    context.user_data[CURRENT_LEVEL] = level
+
+    text = " 구체적으로 어떤 분석 방법을 하실건가요?"
+
+    male, female = _name_switcher(level)
+    if level == CHART :
+        buttons = [
+            [
+                InlineKeyboardButton(text="캔들차트, 이평선", callback_data=str(OHLC)),
+                InlineKeyboardButton(text="볼린저밴드", callback_data=str(BOLLINDGER)),
+            ],
+            [
+                InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+                InlineKeyboardButton(text="Back", callback_data=str(END)),
+            ],
+        ]
+    elif level == VALUATION :
+        buttons = [
+            [
+                InlineKeyboardButton(text="지표", callback_data=str(KPI)),
+                InlineKeyboardButton(text="파마프렌치 기반 평가", callback_data=str(MODEL)),
+            ],
+            [
+                InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
+                InlineKeyboardButton(text="Back", callback_data=str(END)),
+            ],
+        ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return SELECTING_TYPE
+
+
+async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Return to top level conversation."""
+    context.user_data[START_OVER] = True
+    await start(update, context)
+
+    return END
+
+
+# Third level callbacks
+async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Select a feature to update for the person."""
+    buttons = [
+        [
+            InlineKeyboardButton(text="종목명", callback_data=str(NAME)),
+            InlineKeyboardButton(text="종목코드", callback_data=str(CODE)),
+            InlineKeyboardButton(text="Done", callback_data=str(END)),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    # If we collect features for a new person, clear the cache and save the gender
+    if not context.user_data.get(START_OVER):
+        context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        text = "Please select a feature to update."
+
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    # But after we do that, we need to send a new message
+    else:
+        text = "Got it! Please select a feature to update."
+        await update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECTING_FEATURE
 
 
 async def ask_for_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    context.user_data[CORP] = update.callback_query.data
+    """Prompt user to input data for selected feature."""
+    context.user_data[CURRENT_FEATURE] = update.callback_query.data
     text = "Okay, tell me."
+
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(text=text)
 
@@ -183,20 +265,20 @@ async def ask_for_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> s
 async def save_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Save input for feature and return to feature selection."""
     user_data = context.user_data
-    user_data[CURRENT_CORP] = update.message.text
+    user_data[FEATURES][user_data[CURRENT_FEATURE]] = update.message.text
 
     user_data[START_OVER] = True
 
-    return await select_level(update, context)
+    return await select_feature(update, context)
 
 
 async def end_describing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """End gathering of features and return to parent conversation."""
     user_data = context.user_data
-    level = user_data[SCENARIO_LEVEL]
+    level = user_data[CURRENT_LEVEL]
     if not user_data.get(level):
         user_data[level] = []
-    user_data[level].append(user_data[CURRENT_CORP])
+    user_data[level].append(user_data[FEATURES])
 
     # Print upper level menu
     if level == SELF:
@@ -215,107 +297,25 @@ async def stop_nested(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
     return STOPPING
 
 
-
-async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Return to top level conversation."""
-    context.user_data[START_OVER] = True
-    await start(update, context)
-
-    return END
-
-
-# Third level callbacks
-async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    context.user_data[SCENARIO_LEVEL] = 3
-    buttons = [
-        [
-            InlineKeyboardButton(text="시황분석", callback_data=str(TREND)),
-            InlineKeyboardButton(text="기술적분석(차트)", callback_data=str(CHART)),
-            InlineKeyboardButton(text="기본분석(벨류에이션)", callback_data=str(VALUATION)),
-            InlineKeyboardButton(text="모멘텀(호재, 악재)", callback_data=str(MOMENTUM)),
-            InlineKeyboardButton(text="Done", callback_data=str(END)),
-        ]
-    ]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    # If we collect level for analysis, clear the cache and save the level
-    if not context.user_data.get(START_OVER):
-        context.user_data[LEVEL] = {LEVEL: update.callback_query.data}
-        text = "Please select a level to update."
-
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    # But after we do that, we need to send a new message
-    else:
-        text = "Got it! Please select a level to update."
-        await update.message.reply_text(text=text, reply_markup=keyboard)
-    
-    context.user_data[START_OVER] = False
-    return SELECTING_FEATURE
-
-async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    level = update.callback_query.data
-
-    text = "Please choose, whom to add."
-
-    if level == TREND :
-        buttons = [
-        [
-            InlineKeyboardButton(text="이평선 분석", callback_data=str(OLHC)),
-            InlineKeyboardButton(text="볼린저밴드 분석", callback_data=str(BOLLINDER)),
-        ],
-        [
-            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
-            InlineKeyboardButton(text="Back", callback_data=str(END)),
-        ],
-    ]
-        keyboard = InlineKeyboardMarkup(buttons)
-
-    elif level == CHART :
-        buttons = [
-        [
-            InlineKeyboardButton(text="이평선 분석", callback_data=str(OLHC)),
-            InlineKeyboardButton(text="볼린저밴드 분석", callback_data=str(BOLLINDER)),
-        ],
-        ]
-        keyboard = InlineKeyboardMarkup(buttons)
-    elif level == VALUATION :
-        buttons = [
-        [
-            InlineKeyboardButton(text="이평선 분석", callback_data=str(OLHC)),
-            InlineKeyboardButton(text="볼린저밴드 분석", callback_data=str(BOLLINDER)),
-        ],
-        ]
-        keyboard = InlineKeyboardMarkup(buttons)
-    elif level == MOMENTUM :
-        buttons = [
-        [
-            InlineKeyboardButton(text="이평선 분석", callback_data=str(OLHC)),
-            InlineKeyboardButton(text="볼린저밴드 분석", callback_data=str(BOLLINDER)),
-        ],
-        ]
-        keyboard = InlineKeyboardMarkup(buttons)
-
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-
-    return await show_data(update, context)
-
-
-
 def main() -> None:
     """Run the bot."""
     # Create the Application and pass it your bot's token.
+    with open('config/configs.json') as f:
+        json_object = json.load(f)
+    token = json_object["telegram_token"]
     application = Application.builder().token(token).build()
 
     # Set up third level ConversationHandler (collecting features)
     description_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(
-                ask_for_input, pattern="^" + str(CORP_NAME) + "$|^" + str(CORP_CODE) + "$"
+                select_feature, pattern="^" + str(OHLC) + "$|^" + str(BOLLINDGER) + "$"
             )
         ],
         states={
+            SELECTING_FEATURE: [
+                CallbackQueryHandler(ask_for_input, pattern="^(?!" + str(END) + ").*$")
+            ],
             TYPING: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_input)],
         },
         fallbacks=[
@@ -324,23 +324,20 @@ def main() -> None:
         ],
         map_to_parent={
             # Return to second level menu
-            END: ANALYSIS,
+            END: SELECTING_LEVEL,
             # End conversation altogether
             STOPPING: STOPPING,
         },
     )
 
-    # Set up second level ConversationHandler (분석 수행)
-    analysis_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(select_corp_input_type, pattern="^" + str(ANALYSIS) + "$")],
+    # Set up second level ConversationHandler (adding a person)
+    analysis_cov = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_level, pattern="^" + str(INFORMATION) + "$")],
         states={
-            SELECTING_CORP: [description_conv],
             SELECTING_LEVEL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND,select_level)
+                CallbackQueryHandler(select_analysis_type, pattern=f"^{CHART}$|^{VALUATION}$")
             ],
-            SELECTING_FEATURE: [
-                CallbackQueryHandler(select_feature, pattern=f"^{TREND}$|^{CHART}$|^{VALUATION}$|^{MOMENTUM}$")
-            ],
+            SELECTING_TYPE: [description_conv],
         },
         fallbacks=[
             CallbackQueryHandler(show_data, pattern="^" + str(SHOWING) + "$"),
@@ -361,7 +358,7 @@ def main() -> None:
     # Because the states of the third level conversation map to the ones of the second level
     # conversation, we need to make sure the top level conversation can also handle them
     selection_handlers = [
-        analysis_conv,
+        analysis_cov,
         CallbackQueryHandler(show_data, pattern="^" + str(SHOWING) + "$"),
         CallbackQueryHandler(adding_self, pattern="^" + str(ADDING_SELF) + "$"),
         CallbackQueryHandler(end, pattern="^" + str(END) + "$"),
@@ -371,7 +368,7 @@ def main() -> None:
         states={
             SHOWING: [CallbackQueryHandler(start, pattern="^" + str(END) + "$")],
             SELECTING_ACTION: selection_handlers,
-            ANALYSIS: selection_handlers,
+            SELECTING_LEVEL: selection_handlers,
             DESCRIBING_SELF: [description_conv],
             STOPPING: [CommandHandler("start", start)],
         },
