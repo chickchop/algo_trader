@@ -34,42 +34,21 @@ def analysis_olhc(corp_nm, corp_code, stock_df, status) :
         comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
         comment += "기초 캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. 이동평균선간의 교차와 거래량을 이용합니다. \n"
 
-        up = stock_df[stock_df["Close"] >= stock_df["Open"]]
-        down = stock_df[stock_df["Close"] < stock_df["Open"]]
-        width = .3
-        width2 = .03
+        ma5 = mpf.make_addplot(stock_df["ma5"], color="orange", width=1.5)
+        ma20 = mpf.make_addplot(stock_df["ma20"], color="dodgerblue", width=1.5)
+        ma60 = mpf.make_addplot(stock_df["ma60"], color="grey", width=1.5)
+        ma120 = mpf.make_addplot(stock_df["ma120"], color="grey", width=1.5)
 
-        fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 10), sharex=True)
-
-        axes[0].bar(up.index, up["Close"]-up["Open"], width, bottom=up["Open"], color="red")
-        axes[0].bar(up.index, up["High"]-up["Close"], width2, bottom=up["Close"], color="red")
-        axes[0].bar(up.index, up["Low"]-up["Open"], width2, bottom=up["Open"], color="red")
-        
-        # Plotting down prices of the stock
-        axes[0].bar(down.index, down["Close"]-down["Open"], width, bottom=down["Open"], color="blue")
-        axes[0].bar(down.index, down["High"]-down["Close"], width2, bottom=down["Close"], color="blue")
-        axes[0].bar(down.index, down["Low"]-down["Open"], width2, bottom=down["Open"], color="blue")
-
-        axes[0].set_title(f'{corp_nm}(주가차트)')
-        # 색깔 구분을 위한 함수
-        color_fuc = lambda x : 'r' if x >= 0 else 'b'
-
-        # 색깔 구분을 위한 함수를 apply 시켜 Red와 Blue를 구분한다.
-        color_df = stock_df['Volume'].diff().fillna(0).apply(color_fuc)
-
-        # 구분된 값을 list 형태로 만들어준다.
-        color_list = list(color_df)
-
-        axes[1].bar(stock_df.index, stock_df['Volume'], label='거래량', color=color_list)
-        axes[1].grid(True)
-        axes[1].legend(loc='best')
-
-        axes[2].plot(stock_df.index, stock_df['ma5'], linestyle='dashed', label='Moving Average 5')
-        axes[2].plot(stock_df.index, stock_df['ma60'], linestyle='dashed', label='Moving Average 60')
-        axes[2].plot(stock_df.index, stock_df['ma120'], linestyle='dashed', label='Moving Average 120')
-        axes[2].grid(True)
-        axes[2].legend(loc='best')
-
+        fig, axes = mpf.plot(
+            stock_df,
+            type='candle',
+            addplot = [ma5, ma20, ma60, ma120],
+            style='charles',
+            title=f'{corp_nm}(주가차트)',
+            volume=True,
+            returnfig=True
+                )
+      
         ##### analysis
         if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
             comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. \n"

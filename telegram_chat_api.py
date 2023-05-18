@@ -13,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 from algo.chart_analysis import get_chart_result
+from algo.fundamental_analysis import get_analysis_result
 
 # Enable logging
 logging.basicConfig(
@@ -109,11 +110,19 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
             plot_file = BytesIO()
             fig, status_code, msg, comment = get_chart_result(category, corp, analysis_type=analysis_type)
         elif level == VALUATION :
-            pass
-
+            if user_data[FEATURES][ANALYSIS_TYPE] == KPI :
+                analysis_type = 1
+            else :
+                analysis_type = 2
+            plot_file = BytesIO()
+            fig, status_code, msg, comment = get_analysis_result(category, corp, analysis_type=analysis_type)
+            
         if status_code == 200 :
-            fig.savefig(plot_file, format='png')
-            plot_file.seek(0)
+            if fig is None :
+                plot_file = None
+            else :
+                fig.savefig(plot_file, format='png')
+                plot_file.seek(0)
             error_msg = ""
         else :
             error_msg = category + "입력 오류 입니다."
@@ -132,9 +141,12 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
     return_data = prepare_data_for_answer(user_data)
 
     if return_data["status"] == 200 :
-        await update.callback_query.message.reply_photo(
-            photo=return_data["plot_file"]
-        )
+        if return_data["plot_file"] is None :
+            pass
+        else :
+            await update.callback_query.message.reply_photo(
+                photo=return_data["plot_file"]
+            )
 
         await update.callback_query.message.reply_text(
             return_data["comment"],
@@ -360,7 +372,7 @@ def main() -> None:
     description_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(
-                select_feature, pattern="^" + str(OHLC) + "$|^" + str(BOLLINDGER) + "$"
+                select_feature, pattern="^" + str(OHLC) + "$|^" + str(BOLLINDGER) + "$|^" + str(KPI) + "$|^" + str(MODEL)
             )
         ],
         states={

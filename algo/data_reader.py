@@ -1,6 +1,8 @@
 import FinanceDataReader as fdr
-import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
+import OpenDartReader
+import pandas as pd
 
 
 def get_corp_data(category, text, start_date) :
@@ -35,3 +37,67 @@ def get_corp_data(category, text, start_date) :
         return None, None, None, e
 
     return corp_nm, corp_code, stock_df, "Sucess"
+
+
+def get_corp_book_data(category, text) :
+    df_krx = fdr.StockListing('KRX')
+    print("get : " + text)
+    try :
+        if category == "종목명" :
+            corp_nm = text
+            corp_code = df_krx[df_krx["Name"] == text]["Code"].iloc[0]
+            print(corp_code)
+        else :
+            corp_code = text
+            corp_nm = df_krx[df_krx["Code"] == text]["Name"].iloc[0]
+            print(corp_nm)
+
+        start_date = datetime.today() - timedelta(days=3)
+        start_date = datetime(start_date.year, start_date.month, start_date.day)
+        stock_df = fdr.DataReader(symbol=corp_code, start=start_date) 
+        api_key = "c3d9a5fef22af5e566ddf1bf10e8c27ca46d0b15"
+        dart = OpenDartReader(api_key)
+        if datetime.today().month > 5 :
+            dart_year = datetime.today().year -1
+        else :
+            dart_year = datetime.today().year -2
+        
+        dv = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code="11011", key_word="배당")
+        dv_dps   = dv[dv['se'] == '주당 현금배당금(원)']
+        dv_eps   = dv[dv['se'].str.contains('주당순이익')]
+        dv_yield = dv[dv['se'].str.contains('현금배당수익률')]
+        dv_TD    = dv[dv['se'].str.contains('현금배당금총액')]
+
+        DPS = int(dv_dps[['thstrm']].iloc[0,0].replace(',', '').strip()) # 주당 배당금
+        Yield = float(dv_yield[['thstrm']].iloc[0,0].replace(',','').strip())
+        TD = int(dv_TD[['thstrm']].iloc[0,0].replace(',', '').strip()) * 1000000 # 배당금총액. 백만원단위
+
+        corp_book = dart.finstate_all(corp=corp_code, bsns_year=dart_year, fs_div="CFS", reprt_code="11011")
+        equity = int(corp_book.loc[corp_book['sj_div'].isin(['BS']) & corp_book['account_id'].isin(['ifrs-full_Equity']), 'thstrm_amount'].replace(",", "")) # 당기자본(자본총계)
+        liability = int(corp_book.loc[corp_book['sj_div'].isin(['BS']) & corp_book['account_id'].isin(['ifrs-full_Liabilities']), 'thstrm_amount'].replace(",", "")) # 당기부채(부채총계)
+        assets = equity + liability # 자산총계
+        profit = int(corp_book[corp_book['sj_div'].isin(['IS', 'CIS']) & corp_book['account_nm'].str.contains('당기순이익')]["thstrm_amount"].iloc[0].replace(",","")) # 당기순이익
+
+        tmp = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code="11011", key_word="주식총수")
+        total_stock = int(tmp[tmp["se"] == "합계"]["distb_stock_co"].iloc[0].replace(",",""))
+
+        EPS = round(profit/total_stock, 2)
+        PER = round(stock_df["Close"][-1] / EPS, 2)
+        BPS = round(equity / total_stock,2)
+        PBR = round(stock_df["Close"][-1] / BPS, 2)
+        ROE = round(PBR / PER, 2)
+        ROA = round(profit / assets, 2)
+        DE = round(liability / assets, 2)
+
+        corp_book_df = {'종목코드':[corp_code], '종목명':[corp_nm], 
+            'DPS':[DPS], '배당수익률':[Yield], '배당금총액':[TD], 'EPS':[EPS], 'PER':[PER], 'BPS':[BPS], 
+            'ROE':[ROE], 'ROA':[ROA], 'DE':[DE]}
+        
+    except Exception as e:
+        print(e)
+        return None, None, None, e
+
+    return corp_nm, corp_code, corp_book_df, "Sucess"
+
+
+get_corp_book_data("종목명", "NAVER")
