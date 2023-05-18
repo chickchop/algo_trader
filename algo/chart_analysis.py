@@ -30,12 +30,16 @@ def get_chart_result(category, corp, analysis_type=1, start_date=defalut_option[
 
 def analysis_olhc(corp_nm, corp_code, stock_df, status) :
     if status == "Sucess" :
+        ## plot
+        comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
+        comment += "기초 캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. 이동평균선간의 교차와 거래량을 이용합니다. \n"
+
         up = stock_df[stock_df["Close"] >= stock_df["Open"]]
         down = stock_df[stock_df["Close"] < stock_df["Open"]]
         width = .3
         width2 = .03
 
-        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 10), sharex=True)
+        fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 10), sharex=True)
 
         axes[0].bar(up.index, up["Close"]-up["Open"], width, bottom=up["Open"], color="red")
         axes[0].bar(up.index, up["High"]-up["Close"], width2, bottom=up["Close"], color="red")
@@ -47,23 +51,59 @@ def analysis_olhc(corp_nm, corp_code, stock_df, status) :
         axes[0].bar(down.index, down["Low"]-down["Open"], width2, bottom=down["Open"], color="blue")
 
         axes[0].set_title(f'{corp_nm}(주가차트)')
+        # 색깔 구분을 위한 함수
+        color_fuc = lambda x : 'r' if x >= 0 else 'b'
 
-        axes[1].bar(stock_df.index, stock_df['Volume'], label='거래량', color="grey")
+        # 색깔 구분을 위한 함수를 apply 시켜 Red와 Blue를 구분한다.
+        color_df = stock_df['Volume'].diff().fillna(0).apply(color_fuc)
+
+        # 구분된 값을 list 형태로 만들어준다.
+        color_list = list(color_df)
+
+        axes[1].bar(stock_df.index, stock_df['Volume'], label='거래량', color=color_list)
         axes[1].grid(True)
         axes[1].legend(loc='best')
 
+        axes[2].plot(stock_df.index, stock_df['ma5'], linestyle='dashed', label='Moving Average 5')
+        axes[2].plot(stock_df.index, stock_df['ma60'], linestyle='dashed', label='Moving Average 60')
+        axes[2].plot(stock_df.index, stock_df['ma120'], linestyle='dashed', label='Moving Average 120')
+        axes[2].grid(True)
+        axes[2].legend(loc='best')
+
         ##### analysis
-        comment = "기초 캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. \n"
+        if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
+            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. \n"
+        else :
+            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. \n"
 
         return fig, 200, status, comment
     else :
+        comment = "잘못된 입력입니다."
         return None, 500, status, comment
 
 def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
-
+    print(status)
     if status == "Sucess" :
         ##### plot
-        comment = "볼린저 벤드는 주가의 변동성을 이용한 추세매매에 사용하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n\n"
+        comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
+        comment += "볼린저 벤드는 주가의 변동성을 이용한 추세매매에 사용하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n\n"
+
+        # 10일(거래일 기준으로 2주 동안) 기준의 현금흐름지표를 구하는 코드
+        stock_df['TP'] = (stock_df['High']+stock_df['Low']+stock_df['Close'])/3
+        stock_df['PMF'] = 0
+        stock_df['NMF'] = 0
+        for i in range(len(stock_df['Close'])-1):
+            # 당일의 중심가격이 전일의 중심가격보다 크면 긍정적 현금흐름
+            if stock_df['TP'].values[i] < stock_df['TP'].values[i+1]:
+                stock_df['PMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
+                stock_df['NMF'].values[i+1] = 0
+            # 당일의 중심가격이 전일의 중심가격보다 작거나 같으면 부정적 현금흐름
+            else:
+                stock_df['NMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
+                stock_df['PMF'].values[i+1] = 0
+                
+        stock_df['MFR'] = stock_df['PMF'].rolling(window=10).sum()/stock_df['NMF'].rolling(window=10).sum()
+        stock_df['MFI10'] = 100 - 100/(1+stock_df['MFR'])
 
         fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(10, 30), sharex=True)
         axes[0].plot(stock_df.index, stock_df['Close'], label='종가')
@@ -138,4 +178,5 @@ def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
 
         return fig, 200, status, comment
     else :
+        comment = "잘못된 입력입니다."
         return None, 500, status, comment

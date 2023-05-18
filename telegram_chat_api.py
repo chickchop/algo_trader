@@ -1,3 +1,4 @@
+from io import BytesIO
 import logging
 import json
 from typing import Any, Dict, Tuple
@@ -11,6 +12,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from algo.chart_analysis import get_chart_result
 
 # Enable logging
 logging.basicConfig(
@@ -19,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # State definitions for top level conversation
-SELECTING_ACTION, INFORMATION, ADDING_SELF, DESCRIBING_SELF = map(chr, range(4))
+SELECTING_ACTION, INFORMATION, DO_ANALYSIS, DESCRIBING_SELF = map(chr, range(4))
 # State definitions for second level conversation
 SELECTING_LEVEL, SELECTING_TYPE = map(chr, range(4, 6))
 # State definitions for descriptions conversation
@@ -31,28 +33,21 @@ END = ConversationHandler.END
 
 # Different constants for this example
 (
-    CHART,
-    VALUATION,
+    CHART,#\x0f
+    VALUATION,#\x0c
     SELF,
-    GENDER,
+    ANALYSIS_TYPE, #\r
     OHLC,
-    BOLLINDGER,
+    BOLLINDGER, 
     KPI,
     MODEL,
-    CODE,
-    NAME,
-    START_OVER,
-    FEATURES,
-    CURRENT_FEATURE,
-    CURRENT_LEVEL,
+    CODE, #\x12
+    NAME, #\x13
+    START_OVER, #\x14
+    FEATURES, #\x15
+    CURRENT_FEATURE, #\x16
+    CURRENT_LEVEL, #\x17
 ) = map(chr, range(10, 24))
-
-
-# Helper
-def _name_switcher(level: str) -> Tuple[str, str]:
-    if level == CHART:
-        return "Father", "Mother"
-    return "Brother", "Sister"
 
 
 # Top level conversation callbacks
@@ -66,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     buttons = [
         [
             InlineKeyboardButton(text="정보 입력", callback_data=str(INFORMATION)),
-            InlineKeyboardButton(text="Add yourself", callback_data=str(ADDING_SELF)),
+            InlineKeyboardButton(text="분석 실행", callback_data=str(DO_ANALYSIS)),
         ],
         [
             InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
@@ -89,21 +84,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     return SELECTING_ACTION
 
 
-async def adding_self(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Add information about yourself."""
-    context.user_data[CURRENT_LEVEL] = SELF
-    text = "Okay, please tell me about yourself."
-    button = InlineKeyboardButton(text="Add info", callback_data=str(OHLC))
-    keyboard = InlineKeyboardMarkup.from_button(button)
+    
+    text = "분석을 수행중입니다."
 
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    user_data = context.user_data
+    def prepare_data_for_answer(user_data):
+        print(user_data)
+        if user_data[CURRENT_FEATURE] == NAME :
+            category = "종목명"
+            corp = user_data[FEATURES][NAME]
+        else :
+            category = "종목코드"
+            corp = user_data[FEATURES][CODE]
+        level = user_data[CURRENT_LEVEL]
+        
+        if level == CHART :
+            # Write the plot Figure to a file-like bytes object:
+            if user_data[FEATURES][ANALYSIS_TYPE] == OHLC :
+                analysis_type = 1
+            else :
+                analysis_type = 2
+            plot_file = BytesIO()
+            fig, status_code, msg, comment = get_chart_result(category, corp, analysis_type=analysis_type)
+        elif level == VALUATION :
+            pass
 
-    return DESCRIBING_SELF
+        if status_code == 200 :
+            fig.savefig(plot_file, format='png')
+            plot_file.seek(0)
+            error_msg = ""
+        else :
+            error_msg = category + "입력 오류 입니다."
+            plot_file = None
+
+        prepared_data = {
+            "status" : status_code,
+            "msg" : msg ,
+            "error_msg" : error_msg,
+            "plot_file": plot_file,
+            "comment" : comment
+        }
+
+        return prepared_data
+
+    return_data = prepare_data_for_answer(user_data)
+
+    if return_data["status"] == 200 :
+        await update.callback_query.message.reply_photo(
+            photo=return_data["plot_file"]
+        )
+
+        await update.callback_query.message.reply_text(
+            return_data["comment"],
+        )
+    else :
+        await update.message.reply_text(
+            return_data["error_msg"],
+        )
+    # await update.callback_query.answer()
+    # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return END
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    print(context.user_data)
     def pretty_print(data: Dict[str, Any], level: str) -> str:
         corp = data.get(level)
         if not corp:
@@ -112,21 +158,24 @@ async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         return_str = ""
         if level == SELF:
             for corp in data[level]:
-                return_str += f"\nName: {corp.get(NAME, '-')}, Age: {corp.get(AGE, '-')}"
+                return_str += f"\nName: {corp.get(NAME, '-')}, Code: {corp.get(CODE, '-')}"
         else:
-            male, female = _name_switcher(level)
-
             for corp in data[level]:
-                gender = female if corp[GENDER] == FEMALE else male
+                if corp[ANALYSIS_TYPE] == CHART :
+                    analysis_type_nm = "기술적 분석"
+                elif corp[ANALYSIS_TYPE] == VALUATION :
+                    analysis_type_nm = "기본적 분석"
+                else :
+                    analysis_type_nm = ""
                 return_str += (
-                    f"\n{gender}: Name: {corp.get(NAME, '-')}, Age: {corp.get(AGE, '-')}"
+                    f"\n{analysis_type_nm}: Name: {corp.get(NAME, '-')}, Code: {corp.get(CODE, '-')}"
                 )
         return return_str
 
     user_data = context.user_data
     text = f"Yourself:{pretty_print(user_data, SELF)}"
-    text += f"\n\nCHART:{pretty_print(user_data, CHART)}"
-    text += f"\n\nVALUATION:{pretty_print(user_data, VALUATION)}"
+    text += f"\n\n기술적 분석 선택:{pretty_print(user_data, CHART)}"
+    text += f"\n\n기본적 분석 선택:{pretty_print(user_data, VALUATION)}"
 
     buttons = [[InlineKeyboardButton(text="Back", callback_data=str(END))]]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -140,6 +189,8 @@ async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """End Conversation by command."""
+    for i in context.user_data.keys() :
+        del context.user_data[i]
     await update.message.reply_text("Okay, bye.")
 
     return END
@@ -162,7 +213,7 @@ async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> st
     buttons = [
         [
             InlineKeyboardButton(text="기술적 분석(차트 분석)", callback_data=str(CHART)),
-            InlineKeyboardButton(text="기본 분석(벨류에이션)", callback_data=str(VALUATION)),
+            InlineKeyboardButton(text="기본적 분석(벨류에이션)", callback_data=str(VALUATION)),
         ],
         [
             InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
@@ -184,7 +235,6 @@ async def select_analysis_type(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text = " 구체적으로 어떤 분석 방법을 하실건가요?"
 
-    male, female = _name_switcher(level)
     if level == CHART :
         buttons = [
             [
@@ -226,6 +276,7 @@ async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 # Third level callbacks
 async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Select a feature to update for the person."""
+    print(context.user_data)
     buttons = [
         [
             InlineKeyboardButton(text="종목명", callback_data=str(NAME)),
@@ -237,14 +288,14 @@ async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # If we collect features for a new person, clear the cache and save the gender
     if not context.user_data.get(START_OVER):
-        context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        context.user_data[FEATURES] = {ANALYSIS_TYPE: update.callback_query.data}
         text = "Please select a feature to update."
 
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
     # But after we do that, we need to send a new message
     else:
-        text = "Got it! Please select a feature to update."
+        text = "Got it! 이제 Done 을 누르세요."
         await update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
@@ -360,7 +411,7 @@ def main() -> None:
     selection_handlers = [
         analysis_cov,
         CallbackQueryHandler(show_data, pattern="^" + str(SHOWING) + "$"),
-        CallbackQueryHandler(adding_self, pattern="^" + str(ADDING_SELF) + "$"),
+        CallbackQueryHandler(do_analysis, pattern="^" + str(DO_ANALYSIS) + "$"),
         CallbackQueryHandler(end, pattern="^" + str(END) + "$"),
     ]
     conv_handler = ConversationHandler(
