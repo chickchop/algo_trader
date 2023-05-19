@@ -32,15 +32,17 @@ def analysis_kpi(corp_nm, corp_code, stock_df, status) :
         # fig = pd.plotting.table(ax=ax,data=stock_df)
 
         comment = "종목명 : {}({}) \n".format(stock_df["종목명"], stock_df["종목코드"])
+        comment += "사용 사업보고서 : {}({}) \n".format(stock_df["보고서명칭"], stock_df["사업연도"])
         comment += "DPS : {}\n".format(stock_df["DPS"])
-        comment += "배당수익률 : {}\n".format(stock_df["배당수익률"])
+        comment += "배당수익률 : {}%\n".format(stock_df["배당수익률"])
         comment += "배당금총액 : {}\n".format(stock_df["배당금총액"])
         comment += "EPS : {}\n".format(stock_df["EPS"])
         comment += "PER : {}\n".format(stock_df["PER"])
         comment += "BPS : {}\n".format(stock_df["BPS"])
-        comment += "ROE : {}\n".format(stock_df["ROE"])
-        comment += "ROA : {}\n".format(stock_df["ROA"])
-        comment += "DE : {}\n".format(stock_df["DE"])
+        comment += "PBR : {}\n".format(stock_df["PBR"])
+        comment += "ROE : {}%\n".format(stock_df["ROE"] *  100)
+        comment += "ROA : {}%\n".format(stock_df["ROA"] *  100)
+        comment += "DE : {}%\n".format(stock_df["DE"] *  100)
 
         return None, 200, status, comment
     else :

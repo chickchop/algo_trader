@@ -52,17 +52,40 @@ def get_corp_book_data(category, text) :
             corp_nm = df_krx[df_krx["Code"] == text]["Name"].iloc[0]
             print(corp_nm)
 
-        start_date = datetime.today() - timedelta(days=3)
-        start_date = datetime(start_date.year, start_date.month, start_date.day)
-        stock_df = fdr.DataReader(symbol=corp_code, start=start_date) 
+        
         api_key = "c3d9a5fef22af5e566ddf1bf10e8c27ca46d0b15"
         dart = OpenDartReader(api_key)
-        if datetime.today().month > 5 :
+        if datetime.today().month >= 4 :
+            reprt_nm = "사업보고서"
+            reprt_cd = "11011"
             dart_year = datetime.today().year -1
+            end_date = datetime(dart_year, 12, 31)
+        elif datetime.today().month >= 6 :
+            reprt_nm = "1/4분기 보고서"
+            reprt_cd = "11013"
+            dart_year = datetime.today().year
+            end_date = datetime(dart_year, 3, 31)
+        elif datetime.today().month >= 9 :
+            reprt_nm = "반기 보고서"
+            reprt_cd = "11012"
+            dart_year = datetime.today().year
+            end_date = datetime(dart_year, 6, 30)
+        elif datetime.today().month >= 12 :
+            reprt_nm = "3/4분기 보고서"
+            reprt_cd = "11014"
+            dart_year = datetime.today().year
+            end_date = datetime(dart_year, 9, 30)
         else :
-            dart_year = datetime.today().year -2
+            reprt_nm = "3/4분기 보고서"
+            reprt_cd = "11014"
+            dart_year = datetime.today().year - 1
+            end_date = datetime(dart_year, 9, 30)
+
         
-        dv = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code="11011", key_word="배당")
+        start_date = datetime(dart_year, 1, 1)
+        stock_df = fdr.DataReader(symbol=corp_code, start=start_date, end=end_date) 
+        
+        dv = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code=reprt_cd, key_word="배당")
         dv_dps   = dv[dv['se'] == '주당 현금배당금(원)']
         dv_eps   = dv[dv['se'].str.contains('주당순이익')]
         dv_yield = dv[dv['se'].str.contains('현금배당수익률')]
@@ -72,13 +95,13 @@ def get_corp_book_data(category, text) :
         Yield = float(dv_yield[['thstrm']].iloc[0,0].replace(',','').strip())
         TD = int(dv_TD[['thstrm']].iloc[0,0].replace(',', '').strip()) * 1000000 # 배당금총액. 백만원단위
 
-        corp_book = dart.finstate_all(corp=corp_code, bsns_year=dart_year, fs_div="CFS", reprt_code="11011")
+        corp_book = dart.finstate_all(corp=corp_code, bsns_year=dart_year, fs_div="CFS", reprt_code=reprt_cd)
         equity = int(corp_book.loc[corp_book['sj_div'].isin(['BS']) & corp_book['account_id'].isin(['ifrs-full_Equity']), 'thstrm_amount'].replace(",", "")) # 당기자본(자본총계)
         liability = int(corp_book.loc[corp_book['sj_div'].isin(['BS']) & corp_book['account_id'].isin(['ifrs-full_Liabilities']), 'thstrm_amount'].replace(",", "")) # 당기부채(부채총계)
         assets = equity + liability # 자산총계
         profit = int(corp_book[corp_book['sj_div'].isin(['IS', 'CIS']) & corp_book['account_nm'].str.contains('당기순이익')]["thstrm_amount"].iloc[0].replace(",","")) # 당기순이익
 
-        tmp = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code="11011", key_word="주식총수")
+        tmp = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code=reprt_cd, key_word="주식총수")
         total_stock = int(tmp[tmp["se"] == "합계"]["distb_stock_co"].iloc[0].replace(",",""))
 
         EPS = round(profit/total_stock, 2)
@@ -89,9 +112,9 @@ def get_corp_book_data(category, text) :
         ROA = round(profit / assets, 2)
         DE = round(liability / assets, 2)
 
-        corp_book_df = {'종목코드':[corp_code], '종목명':[corp_nm], 
-            'DPS':[DPS], '배당수익률':[Yield], '배당금총액':[TD], 'EPS':[EPS], 'PER':[PER], 'BPS':[BPS], 
-            'ROE':[ROE], 'ROA':[ROA], 'DE':[DE]}
+        corp_book_df = {'종목코드':corp_code, '종목명':corp_nm, '보고서명칭' : reprt_nm, '사업연도' : str(dart_year),
+            'DPS':DPS, '배당수익률':Yield, '배당금총액':TD, 'EPS':EPS, 'PER':PER, 'BPS':BPS,  'PBR':PBR,
+            'ROE':ROE, 'ROA':ROA, 'DE':DE}
         
     except Exception as e:
         print(e)
@@ -100,4 +123,4 @@ def get_corp_book_data(category, text) :
     return corp_nm, corp_code, corp_book_df, "Sucess"
 
 
-get_corp_book_data("종목명", "NAVER")
+get_corp_book_data("종목명", "데브시스터즈")

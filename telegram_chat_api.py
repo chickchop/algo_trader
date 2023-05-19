@@ -152,13 +152,13 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
             return_data["comment"],
         )
     else :
-        await update.message.reply_text(
+        await update.callback_query.message.reply_text(
             return_data["error_msg"],
         )
     # await update.callback_query.answer()
     # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
 
-    return END
+    return await end(update, context)
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:

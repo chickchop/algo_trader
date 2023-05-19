@@ -34,26 +34,72 @@ def analysis_olhc(corp_nm, corp_code, stock_df, status) :
         comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
         comment += "기초 캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. 이동평균선간의 교차와 거래량을 이용합니다. \n"
 
-        ma5 = mpf.make_addplot(stock_df["ma5"], color="orange", width=1.5)
-        ma20 = mpf.make_addplot(stock_df["ma20"], color="dodgerblue", width=1.5)
-        ma60 = mpf.make_addplot(stock_df["ma60"], color="grey", width=1.5)
-        ma120 = mpf.make_addplot(stock_df["ma120"], color="grey", width=1.5)
+        width = .3
+        width2 = .03
 
-        fig, axes = mpf.plot(
-            stock_df,
-            type='candle',
-            addplot = [ma5, ma20, ma60, ma120],
-            style='charles',
-            title=f'{corp_nm}(주가차트)',
-            volume=True,
-            returnfig=True
-                )
-      
+        fig = plt.figure(figsize=(10,10))
+        axes =  plt.subplot2grid((4,4), (0,0), rowspan=3, colspan=4)
+        bottom_axes = plt.subplot2grid((4,4), (3,0), rowspan=1, colspan=4, sharex=axes)
+        bottom_axes.get_yaxis().get_major_formatter().set_scientific(False)
+        axes.bar(up.index, up["Close"]-up["Open"], width, bottom=up["Open"], color="red")
+        axes.bar(up.index, up["High"]-up["Close"], width2, bottom=up["Close"], color="red")
+        axes.bar(up.index, up["Low"]-up["Open"], width2, bottom=up["Open"], color="red")
+        
+        # Plotting down prices of the stock
+        axes.bar(down.index, down["Close"]-down["Open"], width, bottom=down["Open"], color="blue")
+        axes.bar(down.index, down["High"]-down["Close"], width2, bottom=down["Close"], color="blue")
+        axes.bar(down.index, down["Low"]-down["Open"], width2, bottom=down["Open"], color="blue")
+
+        axes.plot(stock_df.index, stock_df['Close'], label='종가', linewidth=0.7)
+        axes.plot(stock_df.index, stock_df['ma5'], label='MA5', linewidth=0.7)
+        axes.plot(stock_df.index, stock_df['ma20'], label='MA20', linewidth=0.7)
+        axes.plot(stock_df.index, stock_df['ma60'], label='MA60', linewidth=0.7)
+        axes.plot(stock_df.index, stock_df['ma120'], label='MA120', linewidth=0.7)
+
+        tmp_comment1 = "중기 신호 없음"
+        for i in range(stock_df.shape[0]):
+            if stock_df['ma20'].values[i] > stock_df['ma60'].values[i] :
+                axes.plot(stock_df.index.values[i], stock_df['Close'].values[i], 'r^')
+                tmp_comment1 = "중기 골든 크로스. 매수 신호 발생"
+            elif stock_df['ma20'].values[i] < stock_df['ma60'].values[i] :
+                axes.plot(stock_df.index.values[i], stock_df['Close'].values[i], 'bv')
+                tmp_comment1 = "중기 데드 크로스. 매도 신호 발생"
+        comment = comment + tmp_comment1 + "\n"
+
+        tmp_comment2 = "장기 신호 없음"
+        for i in range(stock_df.shape[0]):
+            if stock_df['ma60'].values[i] > stock_df['ma120'].values[i] :
+                axes.plot(stock_df.index.values[i], stock_df['Close'].values[i], 'r^')
+                tmp_comment2 = "장기 골든 크로스. 매수 신호 발생"
+            elif stock_df['ma60'].values[i] < stock_df['ma120'].values[i] :
+                axes.plot(stock_df.index.values[i], stock_df['Close'].values[i], 'bv')
+                tmp_comment2 = "장기 데드 크로스. 매도 신호 발생"
+        comment = comment + tmp_comment2 + "\n"
+
+        axes.set_title(f'{corp_nm}(주가차트)')
+        axes.legend(loc='best')
+
+        # 색깔 구분을 위한 함수
+        color_fuc = lambda x : 'r' if x >= 0 else 'b'
+
+        # kospi 거래량의 차이 
+        stock_df['Volume'].diff().fillna(0) ## 첫 행은 값이 Nan이므로 0으로 채워줌
+
+        # 색깔 구분을 위한 함수를 apply 시켜 Red와 Blue를 구분한다.
+        color_df = stock_df['Volume'].diff().fillna(0).apply(color_fuc)
+
+        # 구분된 값을 list 형태로 만들어준다.
+        color_list = list(color_df)
+
+        # 거래량 그래프
+        bottom_axes.bar(stock_df.index, stock_df['Volume'], color=color_list)
+        bottom_axes.get_yaxis().get_major_formatter().set_scientific(False) # 거래량 값 그대로 표현
+
         ##### analysis
-        if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. \n"
-        else :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. \n"
+        if stock_df[-1:]["ma5"].iloc[0] > stock_df[-1:]["ma20"].iloc[0] and stock_df[-1:]["ma20"].iloc[0] > stock_df[-1:]["ma60"].iloc[0] and stock_df[-1:]["Change"] < 0 :
+            comment = comment + "주가가 정배열인 상태에서 하락했습니다. 저가 매수세가 나타날 수 있습니다. \n"
+        elif stock_df[-1:]["ma5"].iloc[0] < stock_df[-1:]["ma20"].iloc[0] and stock_df[-1:]["ma20"].iloc[0] < stock_df[-1:]["ma60"].iloc[0] and stock_df[-1:]["Change"] > 0 :
+            comment = comment + "주가가 역배열인 상태에서 상승했습니다. 고가 매도세가 나타날 수 있습니다. \n"
 
         return fig, 200, status, comment
     else :
@@ -125,7 +171,7 @@ def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
             comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. \n"
 
         if stock_df[-1:]["Close"].iloc[0] < stock_df[-1:]["upper"].iloc[0] and stock_df[-1:]["Close"].iloc[0] > stock_df[-1:]["lower"].iloc[0] :
-            comment = comment + "볼린저 밴드의 내부에 있습니다. 박스권 입니다. 현대 박스권 내 위치는 {} 입니다. \n".format(stock_df[-1:]["PB"].iloc[0])
+            comment = comment + "볼린저 밴드의 내부에 있습니다. 박스권 입니다. 현대 박스권 내 위치는 {} % 입니다. \n".format(round(stock_df[-1:]["PB"].iloc[0], 2)*100)
             if stock_df[:int(len(stock_df)/2)]["PB"].mean() > stock_df[int(len(stock_df)/2):]["PB"].mean() :
                 comment = comment + "PB 가 감소하고 있습니다. 박스권 내에서 하락추세 입니다. \n"
             else :
