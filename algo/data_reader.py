@@ -123,4 +123,4 @@ def get_corp_book_data(category, text) :
     return corp_nm, corp_code, corp_book_df, "Sucess"
 
 
-get_corp_book_data("종목명", "데브시스터즈")
+# get_corp_book_data("종목명", "데브시스터즈")

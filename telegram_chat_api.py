@@ -157,8 +157,10 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
         )
     # await update.callback_query.answer()
     # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-
-    return await end(update, context)
+    
+    context.user_data[START_OVER] = True
+        
+    return STOPPING
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -201,8 +203,6 @@ async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """End Conversation by command."""
-    for i in context.user_data.keys() :
-        del context.user_data[i]
     await update.message.reply_text("Okay, bye.")
 
     return END
