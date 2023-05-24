@@ -127,7 +127,7 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
         else :
             error_msg = category + "입력 오류 입니다."
             plot_file = None
-
+        
         prepared_data = {
             "status" : status_code,
             "msg" : msg ,
@@ -139,7 +139,7 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
         return prepared_data
 
     return_data = prepare_data_for_answer(user_data)
-
+    
     if return_data["status"] == 200 :
         if return_data["plot_file"] is None :
             pass
@@ -158,9 +158,9 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
     # await update.callback_query.answer()
     # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
     
-    context.user_data[START_OVER] = True
+    context.user_data[START_OVER] = False
         
-    return STOPPING
+    return END
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
