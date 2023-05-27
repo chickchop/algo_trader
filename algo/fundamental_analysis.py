@@ -32,6 +32,7 @@ def analysis_kpi(corp_nm, corp_code, stock_df, status) :
         # fig = pd.plotting.table(ax=ax,data=stock_df)
 
         comment = "종목명 : {}({}) \n".format(stock_df["종목명"], stock_df["종목코드"])
+        comment += "기준주가 : {} \n".format(stock_df["기준주가"])
         comment += "사용 사업보고서 : {}({}) \n".format(stock_df["보고서명칭"], stock_df["사업연도"])
         comment += "DPS(안전마진) : {}\n".format(stock_df["DPS"])
         comment += "배당수익률(안전마진) : {}%\n".format(stock_df["배당수익률"])
