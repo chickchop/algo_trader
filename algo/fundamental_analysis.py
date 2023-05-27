@@ -31,7 +31,9 @@ def analysis_kpi(corp_nm, corp_code, stock_df, status) :
         # fig, ax = plt.subplots()
         # fig = pd.plotting.table(ax=ax,data=stock_df)
 
-        comment = "종목명 : {}({}) \n".format(stock_df["종목명"], stock_df["종목코드"])
+        comment = "재무제표를 기반으로 기업의 가치를 평가하기 위한 투자 지표들입니다.\n"
+        comment += "투자지표는 절대적인 값이 아닌 상대적인 값입니다. 산업군 평균이나 경쟁 기업들과 비교해서 지표를 봐야합니다. \n"
+        comment += "종목명 : {}({}) \n".format(stock_df["종목명"], stock_df["종목코드"])
         comment += "기준주가 : {} \n".format(stock_df["기준주가"])
         comment += "사용 사업보고서 : {}({}) \n".format(stock_df["보고서명칭"], stock_df["사업연도"])
         comment += "DPS(안전마진) : {}\n".format(stock_df["DPS"])
