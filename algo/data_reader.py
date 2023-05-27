@@ -29,6 +29,24 @@ def get_corp_data(category, text, start_date) :
         stock_df['ma5'] = stock_df['Close'].rolling(window=5).mean() # 60일 이동평균
         stock_df['ma60'] = stock_df['Close'].rolling(window=60).mean() # 60일 이동평균
         stock_df['ma120'] = stock_df['Close'].rolling(window=120).mean() # 120일 이동평균
+
+        
+        # 10일(거래일 기준으로 2주 동안) 기준의 현금흐름지표를 구하는 코드
+        stock_df['TP'] = (stock_df['High']+stock_df['Low']+stock_df['Close'])/3
+        stock_df['PMF'] = 0
+        stock_df['NMF'] = 0
+        for i in range(len(stock_df['Close'])-1):
+            # 당일의 중심가격이 전일의 중심가격보다 크면 긍정적 현금흐름
+            if stock_df['TP'].values[i] < stock_df['TP'].values[i+1]:
+                stock_df['PMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
+                stock_df['NMF'].values[i+1] = 0
+            # 당일의 중심가격이 전일의 중심가격보다 작거나 같으면 부정적 현금흐름
+            else:
+                stock_df['NMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
+                stock_df['PMF'].values[i+1] = 0
+                
+        stock_df['MFR'] = stock_df['PMF'].rolling(window=10).sum()/stock_df['NMF'].rolling(window=10).sum()
+        stock_df['MFI10'] = 100 - 100/(1+stock_df['MFR'])
         
         stock_df = stock_df[stock_df.index > start_date]
         
@@ -86,6 +104,7 @@ def get_corp_book_data(category, text) :
         stock_df = fdr.DataReader(symbol=corp_code, start=start_date, end=end_date) 
         
         dv = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code=reprt_cd, key_word="배당")
+        dv['thstrm'] = dv['thstrm'].replace('-','0')
         dv_dps   = dv[dv['se'] == '주당 현금배당금(원)']
         dv_eps   = dv[dv['se'].str.contains('주당순이익')]
         dv_yield = dv[dv['se'].str.contains('현금배당수익률')]
@@ -100,6 +119,8 @@ def get_corp_book_data(category, text) :
         liability = int(corp_book.loc[corp_book['sj_div'].isin(['BS']) & corp_book['account_id'].isin(['ifrs-full_Liabilities']), 'thstrm_amount'].replace(",", "")) # 당기부채(부채총계)
         assets = equity + liability # 자산총계
         profit = int(corp_book[corp_book['sj_div'].isin(['IS', 'CIS']) & corp_book['account_nm'].str.contains('당기순이익')]["thstrm_amount"].iloc[0].replace(",","")) # 당기순이익
+        revenue = int(corp_book[corp_book['sj_div'].isin(['IS', 'CIS']) & corp_book['account_id'].isin(['ifrs-full_Revenue'])]["thstrm_amount"].iloc[0].replace(",","")) # 매출액
+        cash_flow = int(corp_book.loc[corp_book['sj_div'].isin(['CF']) & corp_book['account_id'].isin(['ifrs-full_CashFlowsFromUsedInOperatingActivities']), 'thstrm_amount'].replace(",", "")) # 영업 현금 흐름
 
         tmp = dart.report(corp=corp_code, bsns_year=dart_year, reprt_code=reprt_cd, key_word="주식총수")
         total_stock = int(tmp[tmp["se"] == "합계"]["distb_stock_co"].iloc[0].replace(",",""))
@@ -108,13 +129,17 @@ def get_corp_book_data(category, text) :
         PER = round(stock_df["Close"][-1] / EPS, 2)
         BPS = round(equity / total_stock,2)
         PBR = round(stock_df["Close"][-1] / BPS, 2)
+        SPS = round(revenue / total_stock,2)
+        PSR = round(stock_df["Close"][-1] / SPS, 2)
+        CPS = round(cash_flow / total_stock,2)
+        PCR = round(stock_df["Close"][-1] / CPS, 2)
         ROE = round(PBR / PER, 2)
         ROA = round(profit / assets, 2)
         DE = round(liability / assets, 2)
 
         corp_book_df = {'종목코드':corp_code, '종목명':corp_nm, '보고서명칭' : reprt_nm, '사업연도' : str(dart_year),
-            'DPS':DPS, '배당수익률':Yield, '배당금총액':TD, 'EPS':EPS, 'PER':PER, 'BPS':BPS,  'PBR':PBR,
-            'ROE':ROE, 'ROA':ROA, 'DE':DE}
+            'DPS':DPS, '배당수익률':Yield, '배당금총액':TD, '기준주가':stock_df['Close'][-1],'EPS':EPS, 'PER':PER, 'BPS':BPS,  'PBR':PBR,
+            'ROE':ROE, 'ROA':ROA, 'DE':DE, 'SPS':SPS, 'PSR':PSR, 'CPS':CPS, 'PCR':PCR}
         
     except Exception as e:
         print(e)

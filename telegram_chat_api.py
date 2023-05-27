@@ -41,7 +41,7 @@ END = ConversationHandler.END
     OHLC,
     BOLLINDGER, 
     KPI,
-    MODEL,
+    SRIM,
     CODE, #\x12
     NAME, #\x13
     START_OVER, #\x14
@@ -149,18 +149,17 @@ async def do_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
             )
 
         await update.callback_query.message.reply_text(
-            return_data["comment"],
+            text=return_data["comment"]
         )
+        
     else :
         await update.callback_query.message.reply_text(
-            return_data["error_msg"],
+            text=return_data["error_msg"]
         )
-    # await update.callback_query.answer()
-    # await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    
+            
     context.user_data[START_OVER] = False
         
-    return END
+    return await end(update, context)
 
 
 async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -262,7 +261,7 @@ async def select_analysis_type(update: Update, context: ContextTypes.DEFAULT_TYP
         buttons = [
             [
                 InlineKeyboardButton(text="지표", callback_data=str(KPI)),
-                InlineKeyboardButton(text="파마프렌치 기반 평가", callback_data=str(MODEL)),
+                InlineKeyboardButton(text="S-RIM", callback_data=str(SRIM)),
             ],
             [
                 InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
@@ -289,25 +288,31 @@ async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Select a feature to update for the person."""
     print(context.user_data)
-    buttons = [
-        [
-            InlineKeyboardButton(text="종목명", callback_data=str(NAME)),
-            InlineKeyboardButton(text="종목코드", callback_data=str(CODE)),
-            InlineKeyboardButton(text="Done", callback_data=str(END)),
-        ]
-    ]
-    keyboard = InlineKeyboardMarkup(buttons)
+    
 
     # If we collect features for a new person, clear the cache and save the gender
     if not context.user_data.get(START_OVER):
         context.user_data[FEATURES] = {ANALYSIS_TYPE: update.callback_query.data}
-        text = "Please select a feature to update."
+        text = "종목명이나, 종목 코드를 선택 후 입력해 주세요."
+        buttons = [
+        [
+            InlineKeyboardButton(text="종목명", callback_data=str(NAME)),
+            InlineKeyboardButton(text="종목코드", callback_data=str(CODE)),
+        ]
+        ]
+        keyboard = InlineKeyboardMarkup(buttons)
 
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
     # But after we do that, we need to send a new message
     else:
         text = "Got it! 이제 Done 을 누르세요."
+        buttons = [
+        [
+            InlineKeyboardButton(text="Done", callback_data=str(END)),
+        ]
+        ]
+        keyboard = InlineKeyboardMarkup(buttons)
         await update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
@@ -372,7 +377,7 @@ def main() -> None:
     description_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(
-                select_feature, pattern="^" + str(OHLC) + "$|^" + str(BOLLINDGER) + "$|^" + str(KPI) + "$|^" + str(MODEL)
+                select_feature, pattern="^" + str(OHLC) + "$|^" + str(BOLLINDGER) + "$|^" + str(KPI) + "$|^" + str(SRIM)
             )
         ],
         states={
