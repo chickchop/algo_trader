@@ -5,7 +5,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import font_manager, rc
 
-from .data_reader import get_corp_book_data
+from .data_reader import get_corp_book_data, get_corp_last_book_data
+from .valuation_models import RIM
 
 if platform.system() == 'Windows':
     font_name = font_manager.FontProperties(fname="c:/Windows/Fonts/malgun.ttf").get_name()
@@ -20,11 +21,12 @@ defalut_option = {
 }
 
 def get_analysis_result(category, corp, analysis_type=1, start_date=defalut_option["start_date"]) :
-    corp_nm, corp_code, stock_df, status = get_corp_book_data(category, corp)
     if analysis_type == 1 :
+        corp_nm, corp_code, stock_df, status = get_corp_book_data(category, corp)
         return analysis_kpi(corp_nm, corp_code, stock_df, status)
     else :
-        return analysis_factor_model(corp_nm, corp_code, stock_df, status)
+        corp_nm, corp_code, corp_finance_data, status = get_corp_last_book_data(category, corp)
+        return analysis_RIM(corp_nm, corp_code, corp_finance_data, status)
     
 def analysis_kpi(corp_nm, corp_code, stock_df, status) :
     if status == "Sucess" :        
@@ -56,5 +58,29 @@ def analysis_kpi(corp_nm, corp_code, stock_df, status) :
         comment = "잘못된 입력입니다."
         return None, 500, status, comment
 
-def analysis_factor_model(corp_nm, corp_code, stock_df, status) :
-    print(status)
+def analysis_RIM(corp_nm, corp_code, corp_finance_data, status) :
+    if status == "Sucess" :
+        ROE = corp_finance_data["ROE"].mean()
+        equity = corp_finance_data["equity"][-1:].iloc[0]
+        total_stock = corp_finance_data["total_stock"][-1:].iloc[0]
+        current_price = corp_finance_data["current_price"][-1:].iloc[0]
+        
+        model = RIM(corp_nm, ROE, equity)
+        value = model.calculate_corp_val()
+        discounted_value = model.calculate_corp_val(target_return_rate=0.07, discount_roe=1.0)
+        price = model.target_price(value, total_stock)
+        discounted_price = model.target_price(discounted_value, total_stock)
+
+
+        comment = "잔여이익을 기반으로 한 절대가치를 산정한 RIM 모델입니다. \n"
+        comment += "목표 수익률을 7% 선정했습니다.  \n"
+        comment += "예측된 ROE 는 {}%로 선정했습니다.  \n".format(round(ROE * 100, 2))
+        comment += "현재 주가는 {} 입니다.  \n".format(current_price)
+        comment += "적정 주가는 {} 입니다.  \n".format(price)
+        comment += "실적 저하일 경우를 대비한 적정 주가는 {} 입니다.  \n".format(discounted_price)
+        
+    
+        return None, 200, status, comment
+    else :
+        comment = "잘못된 입력입니다."
+        return None, 500, status, comment
