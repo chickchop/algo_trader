@@ -11,9 +11,11 @@ from .valuation_models import RIM
 if platform.system() == 'Windows':
     font_name = font_manager.FontProperties(fname="c:/Windows/Fonts/malgun.ttf").get_name()
     rc('font', family=font_name)
-else:    
+elif platform.system() == 'Mac' :    
 # Mac 인 경우
     rc('font', family='AppleGothic')
+else :
+    rc('font', family='NanumGothic')
 
 matplotlib.rcParams['axes.unicode_minus'] = False
 defalut_option = {
@@ -67,7 +69,7 @@ def analysis_RIM(corp_nm, corp_code, corp_finance_data, status) :
         
         model = RIM(corp_nm, ROE, equity)
         value = model.calculate_corp_val()
-        discounted_value = model.calculate_corp_val(target_return_rate=0.07, discount_roe=1.0)
+        discounted_value = model.calculate_corp_val(target_return_rate=0.07, discount_roe=0.9)
         price = model.target_price(value, total_stock)
         discounted_price = model.target_price(discounted_value, total_stock)
 
