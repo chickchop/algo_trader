@@ -177,7 +177,7 @@ def get_corp_last_book_data(category, text) :
             assets = equity + liability # 자산총계
             profit = int(corp_book[corp_book['sj_div'].isin(['IS', 'CIS']) & corp_book['account_nm'].str.contains('당기순이익')]["thstrm_amount"].iloc[0].replace(",","")) # 당기순이익
             revenue = int(corp_book.loc[corp_book['sj_div'].isin(['IS']) & corp_book['account_nm'].str.contains('매출액')]["thstrm_amount"].iloc[0].replace(",","")) # 매출액
-            cash_flow = int(corp_book.loc[corp_book['sj_div'].isin(['CF']) & corp_book['account_nm'].str.contains('영업활동 현금흐름')]["thstrm_amount"].iloc[0].replace(",","")) # 영업활동 현금흐름
+            cash_flow = int(corp_book.loc[corp_book['sj_div'].isin(['CF']) & corp_book['account_nm'].str.contains('영업활동') & corp_book['account_nm'].str.contains('현금흐름')]["thstrm_amount"].iloc[0].replace(",","")) # 영업활동 현금흐름
             total_stock = int(corp_stock[corp_stock["se"] == "합계"]["distb_stock_co"].iloc[0].replace(",",""))
             stock_price = fdr.DataReader(symbol=corp_code, start=datetime(i,12,25), end=datetime(i,12,31))["Close"][-1]
 
@@ -221,4 +221,4 @@ def get_corp_last_book_data(category, text) :
     return corp_nm, corp_code, corp_finance_data, "Sucess"
 
 
-# get_corp_last_book_data("종목명", "삼성전자")
+# get_corp_last_book_data("종목명", "셀트리온")
