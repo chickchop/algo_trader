@@ -66,9 +66,6 @@ def analysis_RIM(corp_nm, corp_code, corp_finance_data, status) :
         equity = corp_finance_data["equity"][-1:].iloc[0]
         total_stock = corp_finance_data["total_stock"][-1:].iloc[0]
         current_price = corp_finance_data["current_price"][-1:].iloc[0]
-        
-        model = RIM(corp_nm, ROE, equity)
-        value = model.calculate_corp_val()
 
         import requests
         from bs4 import BeautifulSoup
@@ -85,6 +82,9 @@ def analysis_RIM(corp_nm, corp_code, corp_finance_data, status) :
 
         intrest_rate = df.loc['BBB-', '5년']
         intrest_rate = intrest_rate * 0.01
+        
+        model = RIM(corp_nm, ROE, equity)
+        value = model.calculate_corp_val(target_return_rate=intrest_rate)
         discounted_value = model.calculate_corp_val(target_return_rate=intrest_rate, discount_roe=0.9)
         price = model.target_price(value, total_stock)
         discounted_price = model.target_price(discounted_value, total_stock)
