@@ -32,7 +32,7 @@ def analysis_olhc(corp_nm, corp_code, stock_df, status) :
     if status == "Sucess" :
         ## plot
         comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
-        comment += "기초 캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. 이동평균선간의 교차와 거래량을 이용하여 추세를 나타냅니다. \n"
+        comment += "캔들 차트와 이동 평균선 차트 입니다. 추세매매에 사용하는 분석 도구입니다. 이동평균선간의 교차와 거래량을 이용하여 추세를 나타냅니다. \n"
 
         up = stock_df[stock_df["Close"] >= stock_df["Open"]]
         down = stock_df[stock_df["Close"] < stock_df["Open"]]
@@ -109,21 +109,21 @@ def analysis_olhc(corp_nm, corp_code, stock_df, status) :
 
         ##### analysis
         if stock_df[-1:]["ma5"].iloc[0] > stock_df[-1:]["ma20"].iloc[0] :
-            if stock_df[-1:]["Open"].iloc[0] * 1.2 <= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["Low"].iloc[0] and stock_df[-1:]["Close"].iloc[0] == stock_df[-1:]["High"].iloc[0] :
+            if stock_df[-1:]["Open"].iloc[0] * 1.15 <= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["Low"].iloc[0] and stock_df[-1:]["Close"].iloc[0] == stock_df[-1:]["High"].iloc[0] :
                 comment = comment + "상승장에서 나타난 장대 양봉입니다. 추가 상승이 예상되니 불타기(매수)를 추천합니다. \n"
             elif stock_df[-1:]["Open"].iloc[0] * 1.05 <= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] != stock_df[-1:]["Low"].iloc[0] and stock_df[-1:]["Close"].iloc[0] == stock_df[-1:]["High"].iloc[0] :
                 comment = comment + "상승장에서 나타난 밑꼬리 양봉입니다. 상승 추세 지속이 예상됩니다. \n"
-            elif stock_df[-1:]["Open"].iloc[0] * 0.8 >= stock_df[-1:]["Close"].iloc[0] :
+            elif stock_df[-1:]["Open"].iloc[0] * 0.85 >= stock_df[-1:]["Close"].iloc[0] :
                 if stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Close"].iloc[0] == stock_df[-1:]["Low"].iloc[0] :
                     comment = comment + "상승장에서 나타난 장대 음봉입니다. 하락 추세 전환이 예상되니 수익실현(매도)을 추천합니다. \n"
-            elif stock_df[-1:]["Open"].iloc[0] * 0.85 >= stock_df[-1:]["Low"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Close"].iloc[0] != stock_df[-1:]["Low"].iloc[0] :
+            elif stock_df[-1:]["Open"].iloc[0] * 0.90 >= stock_df[-1:]["Low"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Close"].iloc[0] != stock_df[-1:]["Low"].iloc[0] :
                     comment = comment + "상승장에서 나타난 하락 샅바형입니다. 거래량이 동반된 경우 추세 전환이 예상되니 수익실현(매도)을 추천합니다. \n"
             elif stock_df[-1:]["Open"].iloc[0] * 0.95 >= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-2:-1]["Volume"].iloc[0] * 3 < stock_df[-1:]["Volume"].iloc[0] :
                 comment = comment + "상승장에서 나타난 교수형입니다. 대량 거래가 발생했으므로 추세 전환이 예상되니 수익실현(매도)을 추천합니다. \n"
         elif stock_df[-1:]["ma5"].iloc[0] < stock_df[-1:]["ma20"].iloc[0] :
-            if stock_df[-1:]["Open"].iloc[0] * 0.8 >= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Clow"].iloc[0] == stock_df[-1:]["Low"].iloc[0] :
+            if stock_df[-1:]["Open"].iloc[0] * 0.85 >= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Clow"].iloc[0] == stock_df[-1:]["Low"].iloc[0] :
                 comment = comment + "하락장에서 나타난 장대 음봉입니다. 추가 하락이 예상되니 손절(매도)를 추천합니다. \n"
-            elif stock_df[-1:]["Open"].iloc[0] * 1.15 <= stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["Low"].iloc[0] :
+            elif stock_df[-1:]["Open"].iloc[0] * 1.10 <= stock_df[-1:]["High"].iloc[0] and stock_df[-1:]["Open"].iloc[0] == stock_df[-1:]["Low"].iloc[0] :
                 comment = comment + "하락장에서 나타난 상승 샅바형입니다. 기술적 반등이 예상되니 물렸다면 물타기 후 상승시 손절을 추천합니다. \n"
             elif stock_df[-1:]["Open"].iloc[0] * 1.05 <= stock_df[-1:]["Close"].iloc[0] and stock_df[-1:]["Close"].iloc[0] == stock_df[-1:]["High"].iloc[0] :
                 comment = comment + "하락장에서 나타난 망치형입니다. 추가적인 하락이 나올 수 있으니 물타기를 비추천하고 손절을 추천합니다. \n"
@@ -147,26 +147,10 @@ def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
     if status == "Sucess" :
         ##### plot
         comment = "차트 분석은 거래량이 많고 변동성이 큰 주식의 단타매매에 적합합니다. \n"
-        comment += "볼린저 벤드와 MFI 차트입니다. 주가의 변동성과 추세매매에 사용하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n\n"
+        comment += "볼린저 벤드와 MFI 차트입니다. 변동성을 이용한 추세매매에 사용하는 분석 도구입니다. 표준 편차를 이용하여 변동성을 계산합니다. \n\n"
 
-        # 10일(거래일 기준으로 2주 동안) 기준의 현금흐름지표를 구하는 코드
-        stock_df['TP'] = (stock_df['High']+stock_df['Low']+stock_df['Close'])/3
-        stock_df['PMF'] = 0
-        stock_df['NMF'] = 0
-        for i in range(len(stock_df['Close'])-1):
-            # 당일의 중심가격이 전일의 중심가격보다 크면 긍정적 현금흐름
-            if stock_df['TP'].values[i] < stock_df['TP'].values[i+1]:
-                stock_df['PMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
-                stock_df['NMF'].values[i+1] = 0
-            # 당일의 중심가격이 전일의 중심가격보다 작거나 같으면 부정적 현금흐름
-            else:
-                stock_df['NMF'].values[i+1] = stock_df['TP'].values[i+1]*stock_df['Volume'].values[i+1]
-                stock_df['PMF'].values[i+1] = 0
-                
-        stock_df['MFR'] = stock_df['PMF'].rolling(window=10).sum()/stock_df['NMF'].rolling(window=10).sum()
-        stock_df['MFI10'] = 100 - 100/(1+stock_df['MFR'])
 
-        fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(10, 30), sharex=True)
+        fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 30), sharex=True)
         axes[0].plot(stock_df.index, stock_df['Close'], label='종가')
         axes[0].plot(stock_df.index, stock_df['upper'], linestyle='dashed', label='Upper band')
         axes[0].plot(stock_df.index, stock_df['ma20'], linestyle='dashed', label='Moving Average 20')
@@ -183,35 +167,42 @@ def analysis_bollinger_bands(corp_nm, corp_code, stock_df, status) :
         comment = comment + tmp_comment + "\n"
         axes[0].legend(loc='best')
 
-
-        axes[1].plot(stock_df.index, stock_df['PB'], label='%B', color="purple")
+        axes[1].plot(stock_df.index, stock_df['bandwidth'], label='밴드폭', color="brown")
         axes[1].grid(True)
         axes[1].legend(loc='best')
+        
+        bw_status = "변동성이 추세를 이어갑니다."
+        for i in range(len(stock_df['Close'])-1):
+            if stock_df['bandwidth'].values[i-1] < stock_df['bandwidth'].values[i] and stock_df['bandwidth'].values[i] > stock_df['bandwidth'].values[i+1]:
+                bw_status = "변동성이 하락 전환했습니다."
+            elif stock_df['bandwidth'].values[i-1] > stock_df['bandwidth'].values[i] and stock_df['bandwidth'].values[i] < stock_df['bandwidth'].values[i+1]:
+                bw_status = "변동성이 상승 전환했습니다."
 
+        pb_status = "PB가 추세를 이어갑니다."
+        for i in range(len(stock_df['Close'])-1):
+            if stock_df['PB'].values[i-1] < stock_df['PB'].values[i] and stock_df['PB'].values[i] > stock_df['PB'].values[i+1]:
+                pb_status = "PB가 하락 전환했습니다."
+            elif stock_df['PB'].values[i-1] > stock_df['PB'].values[i] and stock_df['PB'].values[i] < stock_df['PB'].values[i+1]:
+                pb_status = "PB가 상승 전환했습니다."
 
-        axes[2].plot(stock_df.index, stock_df['bandwidth'], label='밴드폭', color="brown")
+        axes[2].plot(stock_df.index, stock_df['MFI10'], label='MFI10', color="orange")
+        axes[2].axhline(y=80, color="red", linestyle='dotted')
+        axes[2].axhline(y=20, color="red", linestyle='dotted')
         axes[2].grid(True)
         axes[2].legend(loc='best')
 
-
-        axes[3].plot(stock_df.index, stock_df['MFI10'], label='MFI10', color="orange")
-        axes[3].axhline(y=80, color="red", linestyle='dotted')
-        axes[3].axhline(y=20, color="red", linestyle='dotted')
-        axes[3].grid(True)
-        axes[3].legend(loc='best')
-
         ##### analysis
         if stock_df[:int(len(stock_df)/2)]["bandwidth"].mean() > stock_df[int(len(stock_df)/2):]["bandwidth"].mean() :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. \n"
+            comment = comment + "볼린저 밴드의 Bandwidth 가 감소하고 있습니다. 변동성이 낮아지고 있습니다. "+ bw_status + "\n"
         else :
-            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. \n"
+            comment = comment + "볼린저 밴드의 Bandwidth 가 증가하고 있습니다. 변동성이 증가하고 있습니다. "+ bw_status + "\n"
 
         if stock_df[-1:]["Close"].iloc[0] < stock_df[-1:]["upper"].iloc[0] and stock_df[-1:]["Close"].iloc[0] > stock_df[-1:]["lower"].iloc[0] :
             comment = comment + "볼린저 밴드의 내부에 있습니다. 박스권 입니다. 현대 박스권 내 위치는 {} % 입니다. \n".format(round(stock_df[-1:]["PB"].iloc[0], 2)*100)
             if stock_df[:int(len(stock_df)/2)]["PB"].mean() > stock_df[int(len(stock_df)/2):]["PB"].mean() :
-                comment = comment + "PB 가 감소하고 있습니다. 박스권 내에서 하락추세 입니다. \n"
+                comment = comment + "PB 가 감소하고 있습니다. 박스권 내에서 하락추세 입니다. " + pb_status + "\n"
             else :
-                comment = comment + "PB 가 증가하고 있습니다. 박스권 내에서 상승추세 입니다. \n"
+                comment = comment + "PB 가 증가하고 있습니다. 박스권 내에서 상승추세 입니다. " + pb_status + "\n"
             if stock_df[-1:]["PB"].iloc[0] < 0.1 :
                 comment = comment + "볼린저 밴드의 하단 입니다. MFI 지수를 고려한 후 매수를 고려하세요. \n"
             elif stock_df[-1:]["PB"].iloc[0] > 0.9 :
