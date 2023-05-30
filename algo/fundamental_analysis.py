@@ -69,13 +69,29 @@ def analysis_RIM(corp_nm, corp_code, corp_finance_data, status) :
         
         model = RIM(corp_nm, ROE, equity)
         value = model.calculate_corp_val()
-        discounted_value = model.calculate_corp_val(target_return_rate=0.07, discount_roe=0.9)
+
+        import requests
+        from bs4 import BeautifulSoup
+
+        url = "https://www.kisrating.co.kr/ratingsStatistics/statics_spread.do#"
+
+        r = requests.get(url)
+        page = BeautifulSoup(r.text, 'lxml')
+        tbl_section = page.select_one('div.table_ty1')
+
+        tbl_html = str(tbl_section)
+        df = pd.read_html(tbl_html)[0]
+        df.set_index("구분", inplace=True)
+
+        intrest_rate = df.loc['BBB-', '5년']
+        intrest_rate = intrest_rate * 0.01
+        discounted_value = model.calculate_corp_val(target_return_rate=intrest_rate, discount_roe=0.9)
         price = model.target_price(value, total_stock)
         discounted_price = model.target_price(discounted_value, total_stock)
 
 
         comment = "잔여이익을 기반으로 한 절대가치를 산정한 RIM 모델입니다. \n"
-        comment += "목표 수익률을 7% 선정했습니다.  \n"
+        comment += "목표 수익률을 {}% 선정했습니다.  \n".format(intrest_rate*100)
         comment += "예측된 ROE 는 {}%로 선정했습니다.  \n".format(round(ROE * 100, 2))
         comment += "현재 주가는 {} 입니다.  \n".format(current_price)
         comment += "적정 주가는 {} 입니다.  \n".format(price)
